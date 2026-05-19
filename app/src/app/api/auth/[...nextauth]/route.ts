@@ -1,6 +1,6 @@
 import NextAuth, { AuthOptions } from 'next-auth'
 import GithubProvider from 'next-auth/providers/github'
-import { query } from '@/lib/db'
+import { query, initDB } from '@/lib/db'
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -12,15 +12,20 @@ export const authOptions: AuthOptions = {
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === 'github') {
-        const existing = await query<{ id: string }>(
-          'SELECT id FROM users WHERE email = ?',
-          [user.email]
-        )
-        if (existing.length === 0) {
-          await query(
-            'INSERT INTO users (id, name, email, image) VALUES (?, ?, ?, ?)',
-            [user.id, user.name, user.email, user.image]
+        try {
+          await initDB()
+          const existing = await query<{ id: string }>(
+            'SELECT id FROM users WHERE email = ?',
+            [user.email]
           )
+          if (existing.length === 0) {
+            await query(
+              'INSERT INTO users (id, name, email, image) VALUES (?, ?, ?, ?)',
+              [user.id, user.name, user.email, user.image]
+            )
+          }
+        } catch (e) {
+          console.error('DB error during signIn (non-fatal):', e)
         }
       }
       return true
