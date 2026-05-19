@@ -18,8 +18,11 @@ interface Props {
 interface TreeNode {
   name: string; path: string; heat: number; risk: string
   commitCount: number; fileNode?: FileNode; children: TreeNode[]
-  addedAt: number; deletedAt: number
+  isNew: boolean // just appeared at current commit
+  isModified: boolean // changed in current commit
 }
+
+const isPlaying = (idx: number) => idx >= 0
 
 export default function FileTree({
   nodes, edges, commits, selectedNodeId, onNodeSelect,
@@ -27,45 +30,64 @@ export default function FileTree({
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null)
-  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
   const prevIndexRef = useRef(currentCommitIndex)
 
-  // File lifecycle: when each file appeared and disappeared
-  const fileLifecycle = useMemo(() => {
-    const map = new Map<string, { addedAt: number; deletedAt: number }>()
-    for (const [fp, events] of Object.entries(fileTimeline)) {
-      let addedAt = -1, deletedAt = -1
-      for (const ev of events) {
-        const idx = commits.findIndex(c => Math.abs(new Date(c.date).getTime() - new Date(ev.date).getTime()) < 60000)
-        if (idx >= 0) {
-          if (ev.type === 'added' && addedAt < 0) addedAt = idx
-          if (ev.type === 'deleted') deletedAt = idx
+  // Determine which files exist at current commit index, and which are new/modified
+  const fileState = useMemo(() => {
+    const state = new Map<string, { exists: boolean; isNew: boolean; isModified: boolean }>()
+    const active = new Set<string>()
+
+    if (!isPlaying(currentCommitIndex)) {
+      // Show all files
+      for (const n of nodes) state.set(n.id, { exists: true, isNew: false, isModified: false })
+      return state
+    }
+
+    // Build live set of files up to currentCommitIndex
+    for (let i = 0; i <= currentCommitIndex; i++) {
+      const files = commits[i].filesChanged || []
+      for (const f of files) {
+        if (!active.has(f)) {
+          active.add(f)
+          state.set(f, { exists: true, isNew: i === currentCommitIndex, isModified: i === currentCommitIndex && !state.has(f) })
+        } else if (i === currentCommitIndex) {
+          state.set(f, { exists: true, isNew: false, isModified: true })
         }
       }
-      map.set(fp, { addedAt, deletedAt })
     }
-    // Files without timeline: find their first commit from filesChanged
-    for (const node of nodes) {
-      if (map.has(node.id)) continue
-      let found = -1
-      for (let i = 0; i < commits.length; i++) {
-        if (commits[i].filesChanged?.includes(node.id)) { found = i; break }
+
+    // Also include files from fileTimeline that might not be in commits.filesChanged
+    for (const [fp, events] of Object.entries(fileTimeline)) {
+      if (state.has(fp)) continue
+      for (const ev of events) {
+        const idx = commits.findIndex(c => Math.abs(new Date(c.date).getTime() - new Date(ev.date).getTime()) < 60000)
+        if (idx >= 0 && idx <= currentCommitIndex) {
+          active.add(fp)
+          state.set(fp, { exists: true, isNew: idx === currentCommitIndex, isModified: false })
+          break
+        }
       }
-      map.set(node.id, { addedAt: found >= 0 ? found : 0, deletedAt: -1 })
     }
-    return map
-  }, [fileTimeline, commits, nodes])
 
-  // Build filtered tree based on current timeline position
+    // Mark changed files
+    for (const f of changedFiles) {
+      if (state.has(f)) state.get(f)!.isModified = true
+      else {
+        active.add(f)
+        state.set(f, { exists: true, isNew: false, isModified: true })
+      }
+    }
+
+    return state
+  }, [commits, fileTimeline, currentCommitIndex, changedFiles, nodes])
+
+  // Build tree respecting filtered state. Prune empty dirs when playing.
   const treeData = useMemo(() => {
-    const root: TreeNode = { name: '', path: '', heat: 0, risk: 'low', commitCount: 0, children: [], addedAt: 0, deletedAt: -1 }
+    const root: TreeNode = { name: '', path: '', heat: 0, risk: 'low', commitCount: 0, children: [], isNew: false, isModified: false }
 
     for (const node of nodes) {
-      const lc = fileLifecycle.get(node.id)
-      if (!lc) continue
-      // Filter: skip files not yet born at this commit, or already dead
-      if (currentCommitIndex >= 0 && lc.addedAt > currentCommitIndex) continue
-      if (currentCommitIndex >= 0 && lc.deletedAt >= 0 && lc.deletedAt <= currentCommitIndex) continue
+      const fs = fileState.get(node.id)
+      if (!fs || !fs.exists) continue
 
       const parts = node.path.split('/')
       let cur = root
@@ -73,11 +95,13 @@ export default function FileTree({
         const name = parts[i], fp = parts.slice(0, i + 1).join('/')
         let child = cur.children.find(c => c.name === name)
         if (!child) {
-          child = { name, path: fp, heat: 0, risk: 'low', commitCount: 0, children: [], addedAt: lc.addedAt, deletedAt: lc.deletedAt }
+          child = { name, path: fp, heat: 0, risk: 'low', commitCount: 0, children: [], isNew: false, isModified: false }
           cur.children.push(child)
         }
         if (i === parts.length - 1) {
           child.fileNode = node; child.heat = node.heat; child.risk = node.risk; child.commitCount = node.commitCount
+          child.isNew = fs.isNew
+          child.isModified = fs.isModified
         } else {
           if (node.heat > child.heat) child.heat = node.heat
           if (node.risk === 'high') child.risk = 'high'
@@ -87,13 +111,21 @@ export default function FileTree({
         cur = child
       }
     }
+
+    // Prune empty directories when playing
+    function prune(n: TreeNode): boolean {
+      n.children = n.children.filter(c => prune(c))
+      return n.children.length > 0 || !!n.fileNode
+    }
+    if (isPlaying(currentCommitIndex)) prune(root)
+
     const sort = (n: TreeNode) => {
       n.children.sort((a, b) => (!a.fileNode && b.fileNode ? -1 : a.fileNode && !b.fileNode ? 1 : a.name.localeCompare(b.name)))
       n.children.forEach(sort)
     }
     sort(root)
     return root
-  }, [nodes, fileLifecycle, currentCommitIndex])
+  }, [nodes, fileState, currentCommitIndex])
 
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return
@@ -110,7 +142,7 @@ export default function FileTree({
 
     const filter = defs.append('filter').attr('id', 'glow')
     filter.append('feGaussianBlur').attr('stdDeviation', '3').attr('result', 'b')
-    filter.append('feMerge').selectAll('feMergeNode').data(['b', 'SourceGraphic']).join('feMergeNode').attr('in', d => d as string)
+    filter.append('feMerge').selectAll('feMergeNode').data(['b', 'SourceGraphic'] as string[]).join('feMergeNode').attr('in', d => d)
 
     const g = svg.append('g')
     gRef.current = g as any
@@ -120,13 +152,15 @@ export default function FileTree({
       .on('zoom', (e) => g.attr('transform', e.transform))
     svg.call(zoom)
     svg.call(zoom.transform, d3.zoomIdentity.translate(w / 2, 50).scale(1.2))
-    zoomRef.current = zoom
+
+    const playing = isPlaying(currentCommitIndex)
+    const movingForward = currentCommitIndex > prevIndexRef.current
 
     const root = d3.hierarchy<TreeNode>(treeData)
-    d3.tree<TreeNode>().nodeSize([30, 55]).separation((a, b) => (a.parent === b.parent ? 1 : 1.2))(root)
+    d3.tree<TreeNode>().nodeSize([30, 55]).separation((a, b) => (a.parent === b.parent ? 1 : 1.3))(root)
 
     const descendants = root.descendants() as d3.HierarchyPointNode<TreeNode>[]
-    const posMap = new Map(descendants.map(d => [d.data.path, { x: d.x ?? 0, y: d.y ?? 0, isFile: !!d.data.fileNode }]))
+    const posMap = new Map(descendants.map(d => [d.data.path, { x: d.x ?? 0, y: d.y ?? 0 }]))
 
     // Dependency edges
     const validEdges = edges.filter(e => posMap.get(e.source) && posMap.get(e.target))
@@ -146,33 +180,21 @@ export default function FileTree({
       .attr('fill', 'none').attr('stroke', '#e4e4e7').attr('stroke-width', 0.6)
       .style('pointer-events', 'none')
 
-    // ---- NODES WITH GROW ANIMATION ----
-    const isPlaying = currentCommitIndex >= 0
-    const playingForward = currentCommitIndex > prevIndexRef.current
-
+    // Node groups with enter animation
     const nodeG = g.append('g').selectAll('g')
-      .data(descendants)
-      .join('g')
-      .attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
-      .attr('cursor', d => d.data.fileNode ? 'pointer' : 'default')
-      .attr('opacity', 0)
-      .transition().duration(400)
-      .attr('opacity', 1)
-
-    const nodeGStatic = g.append('g').selectAll('g')
       .data(descendants)
       .join('g')
       .attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
       .attr('cursor', d => d.data.fileNode ? 'pointer' : 'default')
 
     // Directory rects
-    nodeGStatic.filter(d => !d.data.fileNode)
+    nodeG.filter(d => !d.data.fileNode)
       .append('rect')
       .attr('x', -7).attr('y', -5).attr('width', 14).attr('height', 10).attr('rx', 2)
       .attr('fill', d => d.depth <= 2 ? '#a1a1aa' : '#d4d4d8').attr('opacity', 0.5)
 
     // Dir labels
-    nodeGStatic.filter(d => !d.data.fileNode && d.depth <= 3)
+    nodeG.filter(d => !d.data.fileNode && d.depth <= 3)
       .append('text')
       .attr('dy', -9).attr('text-anchor', 'middle').text(d => d.data.name)
       .attr('font-size', d => d.depth <= 1 ? '12px' : '10px')
@@ -180,75 +202,69 @@ export default function FileTree({
       .attr('fill', '#a1a1aa').attr('font-family', 'system-ui')
       .style('pointer-events', 'none')
 
-    // File circles - GROW effect for newly appearing nodes
-    nodeGStatic.filter(d => !!d.data.fileNode)
+    // ---- FILE NODES with GROW ANIMATION ----
+    const animDuration = playing && movingForward ? 800 : 300
+    const labelDelay = playing && movingForward ? 600 : 100
+
+    const circles = nodeG.filter(d => !!d.data.fileNode)
       .append('circle')
-      .attr('r', 0)
+      .attr('r', playing && movingForward ? 0 : d => Math.max(4, d.data.heat / 7 + 4))
       .attr('fill', d => d.data.risk === 'high' ? '#ef4444' : d.data.risk === 'medium' ? '#eab308' : '#22c55e')
       .attr('fill-opacity', 0.85)
       .attr('stroke', 'none').attr('stroke-width', 2)
-      .transition().duration(isPlaying && playingForward ? 500 : 200)
-      .attr('r', d => Math.max(4, d.data.heat / 7 + 4))
 
-    // Newly appeared nodes get a glow pulse
-    if (isPlaying && playingForward) {
-      nodeGStatic.filter(d => !!d.data.fileNode && fileLifecycle.get(d.data.path)?.addedAt === currentCommitIndex)
-        .select('circle')
-        .attr('filter', 'url(#glow)')
-        .transition().delay(500).duration(2000).attr('filter', null)
+    if (playing && movingForward) {
+      circles.transition().duration(animDuration).ease(d3.easeBackOut)
+        .attr('r', d => Math.max(4, d.data.heat / 7 + 4))
     }
 
-    // File labels - alternating above/below
-    nodeGStatic.filter(d => !!d.data.fileNode)
+    // Glow pulse for newly appeared files
+    nodeG.filter(d => d.data.isNew && !!d.data.fileNode)
+      .select('circle')
+      .attr('filter', 'url(#glow)')
+      .transition().delay(animDuration).duration(2500).attr('filter', null)
+
+    // Modified files get orange pulse
+    nodeG.filter(d => d.data.isModified && !d.data.isNew && !!d.data.fileNode)
+      .select('circle')
+      .attr('stroke', '#f59e0b').attr('stroke-width', 3)
+      .transition().delay(animDuration).duration(2000)
+      .attr('stroke-width', 1).attr('stroke', 'none')
+
+    // File labels
+    nodeG.filter(d => !!d.data.fileNode)
       .append('text')
       .attr('dy', (d, i) => (i % 2 === 0 ? -1 : 1) * (Math.max(4, d.data.heat / 7 + 4) + 10))
       .attr('text-anchor', 'middle').text(d => truncate(d.data.name, 14))
       .attr('font-size', '8px').attr('fill', '#71717a').attr('font-family', 'monospace')
-      .attr('opacity', 0).transition().delay(300).duration(300).attr('opacity', 0.6)
+      .attr('opacity', 0).transition().delay(labelDelay).duration(400).attr('opacity', 0.6)
 
-    // Interaction handlers
-    nodeGStatic.on('mouseenter', function(_e, d) {
+    // Interaction
+    nodeG.on('mouseenter', function(_e, d) {
       if (!d.data.fileNode) return
       d3.select(this).select('circle').transition().duration(150).attr('r', Math.max(4, d.data.heat / 7 + 4) + 3).attr('stroke', '#3b82f6').attr('stroke-width', 2.5)
       d3.select(this).select('text').transition().duration(150).attr('opacity', 1)
     })
-    nodeGStatic.on('mouseleave', function(_e, d) {
+    nodeG.on('mouseleave', function(_e, d) {
       d3.select(this).select('circle').transition().duration(150).attr('r', Math.max(4, d.data.heat / 7 + 4)).attr('stroke', 'none')
       d3.select(this).select('text').transition().duration(150).attr('opacity', d.data.path === selectedNodeId ? 1 : 0.6)
     })
-    nodeGStatic.on('click', (_e, d) => {
+    nodeG.on('click', (_e, d) => {
       if (d.data.fileNode) onNodeSelect(d.data.path === selectedNodeId ? null : d.data.path)
     })
 
-    // Persistent selection highlight
-    nodeGStatic.filter(d => d.data.path === selectedNodeId).select('circle')
-      .attr('stroke', '#3b82f6').attr('stroke-width', 2.5)
-    nodeGStatic.filter(d => d.data.path === selectedNodeId).select('text').attr('opacity', 1).attr('font-weight', '700')
-
-    // Timeline changed file highlights
-    nodeGStatic.filter(d => changedFiles.includes(d.data.path) && !!d.data.fileNode)
-      .select('circle')
-      .attr('stroke', '#f59e0b').attr('stroke-width', 3)
-      .transition().duration(300).attr('stroke-width', 3)
-
-    // Auto-focus to changed area
-    if (changedFiles.length > 0 && changedFiles.length <= 15 && zoomRef.current) {
-      const pts = changedFiles.map(f => posMap.get(f)).filter(Boolean) as { x: number; y: number }[]
-      if (pts.length > 0) {
-        const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length
-        const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length
-        svg.transition().duration(700).call(
-          zoomRef.current!.transform as any,
-          d3.zoomIdentity.translate(w / 2 - cx * 1.3, 250 - cy * 1.3).scale(1.3)
-        )
-      }
-    }
+    // Selected highlight
+    nodeG.filter(d => d.data.path === selectedNodeId).select('circle').attr('stroke', '#3b82f6').attr('stroke-width', 2.5)
+    nodeG.filter(d => d.data.path === selectedNodeId).select('text').attr('opacity', 1).attr('font-weight', '700')
 
     prevIndexRef.current = currentCommitIndex
 
-  }, [treeData, edges, selectedNodeId, changedFiles, nodes.length, fileLifecycle, onNodeSelect, currentCommitIndex])
+  }, [treeData, edges, selectedNodeId, nodes.length, fileState, onNodeSelect, currentCommitIndex])
 
   if (nodes.length === 0) return <div className="w-full h-full flex items-center justify-center text-sm text-zinc-400">暂无文件数据</div>
+
+  const playing = isPlaying(currentCommitIndex)
+  const fileCount = treeData.children?.reduce?.((s: number, c: TreeNode) => s + countFiles(c), 0) ?? nodes.length
 
   return (
     <div className="w-full h-full relative">
@@ -257,15 +273,20 @@ export default function FileTree({
         <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />低</span>
         <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" />中</span>
         <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />高</span>
-        <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />变更</span>
       </div>
-      {currentCommitIndex >= 0 && (
+      {playing && (
         <div className="absolute top-3 left-3 text-xs text-zinc-400 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded">
-          Commit {currentCommitIndex + 1}/{commits.length}
+          文件 {fileCount}/{nodes.length} · Commit {currentCommitIndex + 1}/{commits.length}
         </div>
       )}
     </div>
   )
+}
+
+function countFiles(n: TreeNode): number {
+  let c = n.fileNode ? 1 : 0
+  for (const ch of n.children) c += countFiles(ch)
+  return c
 }
 
 function truncate(s: string, max: number): string {
