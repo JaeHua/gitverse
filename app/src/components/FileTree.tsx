@@ -171,7 +171,7 @@ export default function FileTree({
     const wasVisible = (d: d3.HierarchyPointNode<TreeNode>) => prevSet.has(d.data.path)
 
     fileNodes.append('circle')
-      .attr('r', d => wasVisible(d) || !fwd ? rad(d) : 1)
+      .attr('r', d => wasVisible(d) || !fwd ? rad(d) : 3)
       .attr('fill', d => heatFill(d.data.heat)).attr('filter', 'url(#sh)')
       .attr('stroke', 'none').attr('stroke-width', 1.5)
 
@@ -250,7 +250,7 @@ export default function FileTree({
   )
 }
 
-function r(heat: number) { return 3 + Math.max(heat, 3) * 0.14 }
+function r(heat: number) { return 4 + Math.min(Math.max(heat, 0), 80) * 0.12 }
 function heatFill(h: number) { return h > 60 ? '#fca5a5' : h > 30 ? '#fde68a' : '#a7f3d0' }
 function countFiles(n: TreeNode): number { let c = n.fileNode ? 1 : 0; for (const x of n.children) c += countFiles(x); return c }
 function truncate(s: string, max: number): string { return s.length > max ? s.slice(0, max - 2) + '..' : s }
