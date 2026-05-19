@@ -21,105 +21,79 @@ interface TreeNode {
   isNew: boolean; isModified: boolean
 }
 
-const COLORS = {
-  low: '#34d399',
-  medium: '#fbbf24',
-  high: '#f87171',
-  link: '#c4b5fd',
-  branch: '#e5e7eb',
+const C = {
+  bg: '#fafafa',
+  branch: '#e5e5e5',
+  depLine: '#d8b4fe',
+  dirFill: '#e5e7eb',
+  dirLabel: '#a1a1aa',
+  fileLow: '#86efac',
+  fileMid: '#fde68a',
+  fileHigh: '#fca5a5',
   label: '#9ca3af',
-  dirLabel: '#d1d5db',
+  select: '#a78bfa',
+  changed: '#fbbf24',
 }
 
-const isPlaying = (idx: number) => idx >= 0
+function isPlaying(i: number) { return i >= 0 }
 
 export default function FileTree({
   nodes, edges, commits, selectedNodeId, onNodeSelect,
   changedFiles, currentCommitIndex, fileTimeline,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
-  const prevIndexRef = useRef(currentCommitIndex)
+  const prevIdx = useRef(currentCommitIndex)
 
   const fileState = useMemo(() => {
-    const state = new Map<string, { exists: boolean; isNew: boolean; isModified: boolean }>()
-
+    const s = new Map<string, { exists: boolean; isNew: boolean; isModified: boolean }>()
     if (!isPlaying(currentCommitIndex)) {
-      for (const n of nodes) state.set(n.id, { exists: true, isNew: false, isModified: false })
-      return state
+      for (const n of nodes) s.set(n.id, { exists: true, isNew: false, isModified: false })
+      return s
     }
-
     const active = new Set<string>()
     for (let i = 0; i <= currentCommitIndex; i++) {
-      for (const f of (changedFiles.length > 0 && i === currentCommitIndex ? changedFiles : [])) {
-        if (!active.has(f)) { active.add(f); state.set(f, { exists: true, isNew: true, isModified: false }) }
-        else state.set(f, { exists: true, isNew: false, isModified: true })
+      for (const f of commits[i].filesChanged || []) {
+        if (!active.has(f)) { active.add(f); s.set(f, { exists: true, isNew: i === currentCommitIndex, isModified: false }) }
       }
     }
-
-    // Build from commits data
-    for (const c of commits.slice(0, currentCommitIndex + 1)) {
-      for (const f of c.filesChanged || []) {
-        if (!active.has(f)) { active.add(f); state.set(f, { exists: true, isNew: false, isModified: false }) }
-      }
-    }
-
-    // Fallback: timeline
     for (const [fp, evs] of Object.entries(fileTimeline)) {
-      if (state.has(fp)) continue
+      if (s.has(fp)) continue
       for (const ev of evs) {
         const idx = commits.findIndex(c => Math.abs(new Date(c.date).getTime() - new Date(ev.date).getTime()) < 60000)
-        if (idx >= 0 && idx <= currentCommitIndex) { active.add(fp); state.set(fp, { exists: true, isNew: idx === currentCommitIndex, isModified: false }); break }
+        if (idx >= 0 && idx <= currentCommitIndex) { active.add(fp); s.set(fp, { exists: true, isNew: idx === currentCommitIndex, isModified: false }); break }
       }
     }
-
-    for (const f of changedFiles) {
-      if (state.has(f)) state.get(f)!.isModified = true
-    }
-
-    return state
+    for (const f of changedFiles) if (s.has(f)) s.get(f)!.isModified = true
+    return s
   }, [commits, fileTimeline, currentCommitIndex, changedFiles, nodes])
 
   const treeData = useMemo(() => {
     const root: TreeNode = { name: '', path: '', heat: 0, risk: 'low', children: [], isNew: false, isModified: false }
-
     for (const node of nodes) {
       const fs = fileState.get(node.id)
-      if (!fs || !fs.exists) continue
-
+      if (!fs?.exists) continue
       const parts = node.path.split('/')
       let cur = root
       for (let i = 0; i < parts.length; i++) {
-        const name = parts[i], fp = parts.slice(0, i + 1).join('/')
-        let child = cur.children.find(c => c.name === name)
-        if (!child) {
-          child = { name, path: fp, heat: 0, risk: 'low', children: [], isNew: false, isModified: false }
-          cur.children.push(child)
-        }
+        const nm = parts[i], fp = parts.slice(0, i + 1).join('/')
+        let ch = cur.children.find(c => c.name === nm)
+        if (!ch) { ch = { name: nm, path: fp, heat: 0, risk: 'low', children: [], isNew: false, isModified: false }; cur.children.push(ch) }
         if (i === parts.length - 1) {
-          child.fileNode = node; child.heat = node.heat; child.risk = node.risk
-          child.isNew = fs.isNew; child.isModified = fs.isModified
+          ch.fileNode = node; ch.heat = node.heat; ch.risk = node.risk; ch.isNew = fs.isNew; ch.isModified = fs.isModified
         } else {
-          child.heat = Math.max(child.heat, node.heat)
-          if (node.risk === 'high') child.risk = 'high'
-          else if (node.risk === 'medium' && child.risk !== 'high') child.risk = 'medium'
+          ch.heat = Math.max(ch.heat, node.heat)
+          if (node.risk === 'high') ch.risk = 'high'
+          else if (node.risk === 'medium' && ch.risk !== 'high') ch.risk = 'medium'
         }
-        cur = child
+        cur = ch
       }
     }
-
     if (isPlaying(currentCommitIndex)) {
-      const prune = (n: TreeNode): boolean => {
-        n.children = n.children.filter(c => prune(c))
-        return n.children.length > 0 || !!n.fileNode
-      }
+      const prune = (n: TreeNode): boolean => { n.children = n.children.filter(c => prune(c)); return n.children.length > 0 || !!n.fileNode }
       prune(root)
     }
-
-    const sort = (n: TreeNode) => {
-      n.children.sort((a, b) => (!a.fileNode && b.fileNode ? -1 : a.fileNode && !b.fileNode ? 1 : a.name.localeCompare(b.name)))
-      n.children.forEach(sort)
-    }
-    sort(root)
+    const srt = (n: TreeNode) => { n.children.sort((a, b) => (!a.fileNode && b.fileNode ? -1 : a.fileNode && !b.fileNode ? 1 : a.name.localeCompare(b.name))); n.children.forEach(srt) }
+    srt(root)
     return root
   }, [nodes, fileState, currentCommitIndex])
 
@@ -130,65 +104,63 @@ export default function FileTree({
     svg.selectAll('*').remove()
     const w = svgRef.current.clientWidth
 
-    // Drop shadow filter for nodes
     const defs = svg.append('defs')
-    const shadow = defs.append('filter').attr('id', 'shadow').attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%')
-    shadow.append('feDropShadow').attr('dx', 0).attr('dy', 1).attr('stdDeviation', 2).attr('flood-color', '#000').attr('flood-opacity', 0.06)
 
-    const glow = defs.append('filter').attr('id', 'glow')
-    glow.append('feGaussianBlur').attr('stdDeviation', '4').attr('result', 'b')
-    glow.append('feMerge').selectAll('feMergeNode').data(['b', 'SourceGraphic'] as string[]).join('feMergeNode').attr('in', d => d)
+    // Subtle shadow
+    const sh = defs.append('filter').attr('id', 'sh').attr('x', '-30%').attr('y', '-30%').attr('width', '160%').attr('height', '160%')
+    sh.append('feDropShadow').attr('dx', 0).attr('dy', 1).attr('stdDeviation', 1.5).attr('flood-color', '#000').attr('flood-opacity', 0.04)
 
-    defs.append('marker').attr('id', 'arr').attr('viewBox', '0 -5 10 10').attr('refX', 7).attr('refY', 0)
+    defs.append('marker').attr('id', 'arr').attr('viewBox', '0 -4 8 8').attr('refX', 7).attr('refY', 0)
       .attr('markerWidth', 3).attr('markerHeight', 3).attr('orient', 'auto')
-      .append('path').attr('d', 'M0,-4L8,0L0,4').attr('fill', COLORS.link).attr('opacity', 0.5)
+      .append('path').attr('d', 'M0,-3L7,0L0,3').attr('fill', C.depLine).attr('opacity', 0.5)
 
     const g = svg.append('g')
-
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.08, 6])
-      .on('zoom', (e) => g.attr('transform', e.transform))
-    svg.call(zoom)
-    svg.call(zoom.transform, d3.zoomIdentity.translate(w / 2, 60).scale(1.1))
+    const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.08, 6]).on('zoom', e => g.attr('transform', e.transform))
+    svg.call(zoom).call(zoom.transform, d3.zoomIdentity.translate(w / 2, 60).scale(1.1))
 
     const playing = isPlaying(currentCommitIndex)
-    const movingFwd = currentCommitIndex > prevIndexRef.current
+    const fwd = currentCommitIndex > prevIdx.current
 
     const root = d3.hierarchy<TreeNode>(treeData)
-    d3.tree<TreeNode>().nodeSize([32, 60]).separation((a, b) => (a.parent === b.parent ? 1 : 1.4))(root)
+    d3.tree<TreeNode>().nodeSize([30, 58]).separation((a, b) => a.parent === b.parent ? 1 : 1.35)(root)
 
     const desc = root.descendants() as d3.HierarchyPointNode<TreeNode>[]
     const pos = new Map(desc.map(d => [d.data.path, { x: d.x ?? 0, y: d.y ?? 0 }]))
 
-    // ---- BRANCH LINKS (drawn first, extend with animation) ----
-    const links = g.append('g').selectAll('path')
+    // ---- TREE BRANCHES (slow extend when playing forward) ----
+    const branchG = g.append('g')
+
+    const branches = branchG.selectAll('path')
       .data(root.links() as d3.HierarchyPointLink<TreeNode>[])
       .join('path')
-      .attr('fill', 'none').attr('stroke', COLORS.branch).attr('stroke-width', 1)
+      .attr('fill', 'none').attr('stroke', C.branch).attr('stroke-width', 1)
+      .attr('stroke-linecap', 'round')
 
-    if (playing && movingFwd) {
-      links.each(function() {
+    if (playing && fwd) {
+      // Slow branch extension effect
+      branches.each(function () {
         const el = this as SVGPathElement
+        d3.select(el).attr('d', d => d3.linkVertical<any, any>().x((n: any) => n.x ?? 0).y((n: any) => n.y ?? 0)(d))
         const len = el.getTotalLength()
+        if (len === 0) return
         d3.select(el)
           .attr('stroke-dasharray', len)
           .attr('stroke-dashoffset', len)
-          .transition().duration(1000).ease(d3.easeCubicInOut)
-          .attr('stroke-dashoffset', '0')
-          .transition().duration(300)
-          .attr('stroke-dasharray', 'none')
+          .transition().duration(1500).ease(d3.easeCubicInOut)
+          .attr('stroke-dashoffset', 0)
+          .on('end', function () { d3.select(this).attr('stroke-dasharray', 'none') })
       })
     } else {
-      links.attr('d', d => d3.linkVertical<d3.HierarchyPointLink<TreeNode>, d3.HierarchyPointNode<TreeNode>>().x(n => n.x ?? 0).y(n => n.y ?? 0)(d as any))
+      branches.attr('d', d => d3.linkVertical<any, any>().x((n: any) => n.x ?? 0).y((n: any) => n.y ?? 0)(d))
     }
 
     // ---- DEPENDENCY EDGES ----
-    const validEdges = edges.filter(e => pos.get(e.source) && pos.get(e.target))
-    g.append('g').selectAll('path').data(validEdges).join('path')
+    g.append('g').selectAll('path')
+      .data(edges.filter(e => pos.get(e.source) && pos.get(e.target)))
+      .join('path')
       .attr('d', d => { const s = pos.get(d.source)!, t = pos.get(d.target)!; return `M${s.x},${s.y}C${(s.x + t.x) / 2},${s.y} ${(s.x + t.x) / 2},${t.y} ${t.x},${t.y}` })
-      .attr('fill', 'none').attr('stroke', COLORS.link).attr('stroke-width', d => Math.max(d.weight / 35, 0.3))
-      .attr('stroke-opacity', 0.2).attr('marker-end', 'url(#arr)')
-      .style('pointer-events', 'none')
+      .attr('fill', 'none').attr('stroke', C.depLine).attr('stroke-width', d => Math.max(d.weight / 35, 0.3))
+      .attr('stroke-opacity', 0.18).attr('marker-end', 'url(#arr)').style('pointer-events', 'none')
 
     // ---- NODES ----
     const nodeG = g.append('g').selectAll('g')
@@ -196,125 +168,110 @@ export default function FileTree({
       .join('g')
       .attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
       .attr('cursor', d => d.data.fileNode ? 'pointer' : 'default')
-      .attr('opacity', 0)
 
-    // Fade in nodes
-    nodeG.transition().duration(playing && movingFwd ? 600 : 200).delay(playing && movingFwd ? 200 : 0)
-      .attr('opacity', 1)
-
-    // ---- DIRECTORY labels (subtle, small) ----
-    nodeG.filter(d => !d.data.fileNode && d.depth >= 1 && d.depth <= 2)
-      .append('text')
-      .attr('dy', -10).attr('text-anchor', 'middle')
+    // ---- DIRECTORY NODES (folder icon + label) ----
+    const dirs = nodeG.filter(d => !d.data.fileNode && d.depth >= 1)
+    dirs.append('rect')
+      .attr('x', -8).attr('y', -5.5).attr('width', 16).attr('height', 11).attr('rx', 2.5)
+      .attr('fill', C.dirFill).attr('stroke', C.branch).attr('stroke-width', 0.5)
+      .attr('filter', 'url(#sh)')
+    dirs.append('text')
+      .attr('dy', -9).attr('text-anchor', 'middle')
       .text(d => d.data.name)
-      .attr('font-size', '10px').attr('font-weight', '500')
-      .attr('fill', COLORS.dirLabel).attr('font-family', 'system-ui, -apple-system, sans-serif')
-      .attr('letter-spacing', '0.02em')
+      .attr('font-size', d => d.depth === 1 ? '11px' : '10px')
+      .attr('font-weight', d => d.depth === 1 ? '600' : '400')
+      .attr('fill', d => d.depth === 1 ? '#6b7280' : C.dirLabel)
+      .attr('font-family', 'system-ui, -apple-system, sans-serif')
       .style('pointer-events', 'none')
 
-    // ---- FILE NODES with organic growth ----
-    const fileNodes = nodeG.filter(d => !!d.data.fileNode)
+    // ---- FILE NODES (slow organic growth) ----
+    const files = nodeG.filter(d => !!d.data.fileNode)
+    const GROW_TIME = playing && fwd ? 2000 : 300
 
-    // Circle: organic growth from center
-    fileNodes.append('circle')
-      .attr('r', playing && movingFwd ? 0 : d => nodeRadius(d.data.heat))
-      .attr('fill', d => heatColor(d.data.heat))
-      .attr('filter', 'url(#shadow)')
-      .attr('stroke', 'none')
-      .attr('stroke-width', 1.5)
+    files.append('circle')
+      .attr('r', playing && fwd ? 0.1 : d => r(d.data.heat))
+      .attr('fill', d => heatFill(d.data.heat))
+      .attr('filter', 'url(#sh)')
+      .attr('stroke', 'none').attr('stroke-width', 1.5)
 
-    if (playing && movingFwd) {
-      fileNodes.select('circle')
-        .transition().duration(900).ease(d3.easeBackOut.overshoot(3))
-        .attr('r', d => nodeRadius(d.data.heat))
-    }
+    files.select('circle')
+      .transition().duration(GROW_TIME).ease(d3.easeElasticOut.amplitude(0.6).period(0.8))
+      .attr('r', d => r(d.data.heat))
 
-    // New node organic pulse
-    nodeG.filter(d => d.data.isNew && !!d.data.fileNode)
-      .select('circle')
-      .attr('filter', 'url(#glow)')
-      .transition().delay(900).duration(3000).attr('filter', 'url(#shadow)')
-
-    // Modified: subtle breath pulse
-    nodeG.filter(d => d.data.isModified && !d.data.isNew && !!d.data.fileNode)
-      .select('circle')
-      .transition().duration(1800).ease(d3.easeSinInOut)
-      .attr('r', d => nodeRadius(d.data.heat) * 1.15)
-      .transition().duration(1800).ease(d3.easeSinInOut)
-      .attr('r', d => nodeRadius(d.data.heat))
-
-    // ---- FILE LABELS (subtle, low contrast) ----
-    fileNodes.append('text')
-      .attr('dy', (d, i) => (i % 2 === 0 ? -1 : 1) * (nodeRadius(d.data.heat) + 10))
+    // Labels fade in after growth
+    files.append('text')
+      .attr('dy', (d, i) => (i % 2 === 0 ? -1 : 1) * (r(d.data.heat) + 10))
       .attr('text-anchor', 'middle')
-      .text(d => truncate(d.data.name, 14))
-      .attr('font-size', '8px').attr('font-weight', '400')
-      .attr('fill', COLORS.label).attr('font-family', 'ui-monospace, SF Mono, monospace')
+      .text(d => truncate(d.data.name, 15))
+      .attr('font-size', '8px').attr('fill', C.label).attr('font-family', 'ui-monospace, monospace')
       .attr('letter-spacing', '0.01em')
-      .attr('opacity', 0).transition().delay(playing && movingFwd ? 600 : 100).duration(500).attr('opacity', 0.55)
+      .attr('opacity', 0)
+      .transition().delay(GROW_TIME).duration(800)
+      .attr('opacity', 0.5)
 
-    // ---- INTERACTION ----
-    nodeG.on('mouseenter', function(_e, d) {
-      if (!d.data.fileNode) return
-      d3.select(this).select('circle')
-        .transition().duration(200).attr('r', nodeRadius(d.data.heat) + 4)
-        .attr('stroke', COLORS.link).attr('stroke-width', 2)
+    // ---- ANIMATION: modified = slow breath pulse ----
+    files.filter(d => d.data.isModified && !d.data.isNew)
+      .select('circle')
+      .transition().duration(2500).ease(d3.easeSinInOut)
+      .attr('r', d => r(d.data.heat) * 1.12)
+      .transition().duration(2500).ease(d3.easeSinInOut)
+      .attr('r', d => r(d.data.heat))
+
+    // ---- ANIMATION: new = gentle glow bloom ----
+    files.filter(d => d.data.isNew)
+      .select('circle')
+      .attr('stroke', C.changed).attr('stroke-opacity', 0.6)
+      .transition().delay(GROW_TIME).duration(4000)
+      .attr('stroke-opacity', 0).attr('stroke', 'none')
+
+    // ---- HOVER ----
+    files.on('mouseenter', function (_e, d) {
+      d3.select(this).select('circle').transition().duration(250)
+        .attr('r', r(d.data.heat) + 4).attr('stroke', C.select).attr('stroke-width', 2.5)
       d3.select(this).select('text').transition().duration(200).attr('opacity', 0.9)
     })
-    nodeG.on('mouseleave', function(_e, d) {
-      d3.select(this).select('circle')
-        .transition().duration(200).attr('r', nodeRadius(d.data.heat))
-        .attr('stroke', 'none')
+    files.on('mouseleave', function (_e, d) {
+      d3.select(this).select('circle').transition().duration(300)
+        .attr('r', r(d.data.heat)).attr('stroke', 'none').attr('stroke-width', 1.5)
       d3.select(this).select('text').transition().duration(200)
-        .attr('opacity', d.data.path === selectedNodeId ? 0.9 : 0.55)
+        .attr('opacity', d.data.path === selectedNodeId ? 0.9 : 0.5)
     })
-    nodeG.on('click', (_e, d) => {
-      if (d.data.fileNode) onNodeSelect(d.data.path === selectedNodeId ? null : d.data.path)
+    files.on('click', (_e, d) => {
+      onNodeSelect(d.data.path === selectedNodeId ? null : d.data.path)
     })
 
-    // Selected highlight
-    nodeG.filter(d => d.data.path === selectedNodeId).select('circle')
-      .attr('stroke', '#818cf8').attr('stroke-width', 2.5)
-    nodeG.filter(d => d.data.path === selectedNodeId).select('text')
-      .attr('opacity', 0.9).attr('font-weight', '500')
+    // Selected
+    files.filter(d => d.data.path === selectedNodeId).select('circle').attr('stroke', C.select).attr('stroke-width', 2.5)
+    files.filter(d => d.data.path === selectedNodeId).select('text').attr('opacity', 0.9).attr('font-weight', '500')
 
-    prevIndexRef.current = currentCommitIndex
+    // Changed file highlights (orange ring, fade)
+    files.filter(d => changedFiles.includes(d.data.path)).select('circle')
+      .attr('stroke', C.changed).attr('stroke-width', 2.5)
+      .transition().delay(0).duration(3000)
+      .attr('stroke-opacity', 0).attr('stroke', 'none')
+
+    prevIdx.current = currentCommitIndex
 
   }, [treeData, edges, selectedNodeId, nodes.length, onNodeSelect, currentCommitIndex])
 
   if (nodes.length === 0) return <div className="w-full h-full flex items-center justify-center text-sm text-zinc-400">暂无文件数据</div>
 
+  const cnt = countFiles(treeData)
   const playing = isPlaying(currentCommitIndex)
-  const visibleCount = countFiles(treeData)
 
   return (
-    <div className="w-full h-full relative" style={{ background: 'transparent' }}>
-      <svg ref={svgRef} className="w-full h-full" style={{ background: 'transparent' }} />
+    <div className="w-full h-full relative bg-[#fafafa]">
+      <svg ref={svgRef} className="w-full h-full" />
       {playing && (
-        <div className="absolute top-4 left-4 text-[11px] text-zinc-400 font-medium tracking-wide">
-          文件 {visibleCount}/{nodes.length} &middot; {currentCommitIndex + 1}/{commits.length}
+        <div className="absolute top-4 left-4 text-[11px] text-zinc-400 font-medium tracking-wide select-none">
+          文件 {cnt}/{nodes.length} &middot; {currentCommitIndex + 1}/{commits.length}
         </div>
       )}
     </div>
   )
 }
 
-function nodeRadius(heat: number): number {
-  return 3 + Math.max(heat, 5) * 0.15
-}
-
-function heatColor(heat: number): string {
-  if (heat > 60) return '#fca5a5'
-  if (heat > 30) return '#fde68a'
-  return '#a7f3d0'
-}
-
-function countFiles(n: TreeNode): number {
-  let c = n.fileNode ? 1 : 0
-  for (const ch of n.children) c += countFiles(ch)
-  return c
-}
-
-function truncate(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max - 2) + '..' : s
-}
+function r(heat: number) { return 3 + Math.max(heat, 3) * 0.14 }
+function heatFill(h: number) { return h > 60 ? '#fca5a5' : h > 30 ? '#fde68a' : '#a7f3d0' }
+function countFiles(n: TreeNode): number { let c = n.fileNode ? 1 : 0; for (const x of n.children) c += countFiles(x); return c }
+function truncate(s: string, max: number): string { return s.length > max ? s.slice(0, max - 2) + '..' : s }
