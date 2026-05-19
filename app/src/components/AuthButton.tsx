@@ -1,10 +1,22 @@
 'use client'
 
+import { useState, useRef, useEffect } from 'react'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import Image from 'next/image'
+import Link from 'next/link'
 
 export default function AuthButton() {
   const { data: session, status } = useSession()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   if (status === 'loading') {
     return <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
@@ -12,25 +24,37 @@ export default function AuthButton() {
 
   if (session) {
     return (
-      <div className="flex items-center gap-3">
-        {session.user?.image && (
-          <Image
-            src={session.user.image}
-            alt="avatar"
-            width={28}
-            height={28}
-            className="rounded-full ring-1 ring-zinc-200 dark:ring-zinc-700"
-          />
-        )}
-        <span className="text-sm text-zinc-600 dark:text-zinc-400 max-w-[100px] truncate">
-          {session.user?.name}
-        </span>
+      <div className="relative" ref={ref}>
         <button
-          onClick={() => signOut()}
-          className="text-xs text-zinc-400 hover:text-red-500 transition-colors"
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
         >
-          退出
+          {session.user?.image && (
+            <Image src={session.user.image} alt="avatar" width={28} height={28}
+              className="rounded-full ring-1 ring-zinc-200 dark:ring-zinc-700" />
+          )}
+          <span className="text-sm text-zinc-600 dark:text-zinc-400 max-w-[100px] truncate">
+            {session.user?.name}
+          </span>
         </button>
+
+        {open && (
+          <div className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 py-1 z-50">
+            <Link
+              href="/settings"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+            >
+              设置
+            </Link>
+            <button
+              onClick={() => { setOpen(false); signOut() }}
+              className="w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+            >
+              退出登录
+            </button>
+          </div>
+        )}
       </div>
     )
   }
