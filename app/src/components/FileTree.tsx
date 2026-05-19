@@ -79,7 +79,7 @@ export default function FileTree({
     const fwd = currentCommitIndex > prevIdx.current
     const prevSet = prevPaths.current
     const prevBrSet = prevBranches.current
-    const ANIM = playing && fwd ? 4000 : 300
+    const ANIM = playing && fwd ? 2500 : 300
 
     // Fade out old content
     const oldG = svg.select<SVGGElement>('g.tree-content')
@@ -171,14 +171,14 @@ export default function FileTree({
     const wasVisible = (d: d3.HierarchyPointNode<TreeNode>) => prevSet.has(d.data.path)
 
     fileNodes.append('circle')
-      .attr('r', d => wasVisible(d) ? rad(d) : (fwd ? 0.1 : rad(d)))
+      .attr('r', d => wasVisible(d) || !fwd ? rad(d) : 1)
       .attr('fill', d => heatFill(d.data.heat)).attr('filter', 'url(#sh)')
       .attr('stroke', 'none').attr('stroke-width', 1.5)
 
-    // Grow only new nodes
+    // Grow only new nodes - start immediately, no delay
     if (fwd) {
       fileNodes.filter(d => !wasVisible(d)).select('circle')
-        .transition().delay(ANIM * 0.3).duration(ANIM * 0.7).ease(d3.easeElasticOut.amplitude(0.4).period(0.8))
+        .transition().duration(ANIM).ease(d3.easeElasticOut.amplitude(0.4).period(0.8))
         .attr('r', d => rad(d))
     }
 
@@ -192,13 +192,13 @@ export default function FileTree({
 
     if (fwd) {
       fileNodes.filter(d => !wasVisible(d)).select('text')
-        .transition().delay(ANIM * 0.5).duration(600).attr('opacity', 0.5)
+        .transition().delay(ANIM * 0.3).duration(600).attr('opacity', 0.5)
     }
 
     // ---- EFFECTS ----
     fileNodes.filter(d => d.data.isNew).select('circle')
       .attr('stroke', C.glow).attr('stroke-opacity', 0.6)
-      .transition().delay(ANIM * 0.8).duration(4000).attr('stroke-opacity', 0).attr('stroke', 'none')
+      .transition().delay(ANIM * 0.5).duration(3000).attr('stroke-opacity', 0).attr('stroke', 'none')
 
     fileNodes.filter(d => d.data.isModified && !d.data.isNew).select('circle')
       .transition().duration(2000).ease(d3.easeSinInOut).attr('r', d => rad(d) * 1.12)
