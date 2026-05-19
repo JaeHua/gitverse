@@ -14,8 +14,8 @@ export async function initDB() {
   }
 }
 
-export async function query<T = any>(sql: string, params?: any[]): Promise<T[]> {
-  const [rows] = await pool.execute(sql, params)
+export async function query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]> {
+  const [rows] = await pool.execute(sql, params as Parameters<typeof pool.execute>[1])
   return rows as T[]
 }
 

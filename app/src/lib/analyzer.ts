@@ -1,10 +1,14 @@
 import { v4 as uuid } from 'uuid'
 import path from 'path'
-import { GitAnalysis, AnalyzeRequest } from '@/types/analysis'
+import { GitAnalysis, AnalyzeRequest, FileNode, DependencyEdge } from '@/types/analysis'
 import { cloneOrOpen, getCommits, getFileStats, getSourceFiles } from './git'
 import { analyzeImports } from './deps'
 import { calculateFileNodes } from './heatmap'
 import { initDB, query } from './db'
+
+interface DbRow {
+  [key: string]: unknown
+}
 
 export async function analyzeRepo(request: AnalyzeRequest): Promise<string> {
   await initDB()
@@ -21,14 +25,13 @@ export async function analyzeRepo(request: AnalyzeRequest): Promise<string> {
     const fileStats = await getFileStats(git, maxCommits)
 
     const sourceFiles = getSourceFiles(repoDir).map((f) => path.relative(repoDir, f))
-    const nodes = calculateFileNodes(fileStats, repoDir)
+    const nodes = calculateFileNodes(fileStats)
 
     const nodeIdSet = new Set(nodes.map((n) => n.id))
     const edges = analyzeImports(sourceFiles, repoDir, nodeIdSet)
 
     const analysisId = uuid()
     const projectId = uuid()
-    const now = new Date().toISOString()
 
     await query(
       `INSERT INTO projects (id, name, source_type, source_path)
@@ -50,7 +53,7 @@ export async function analyzeRepo(request: AnalyzeRequest): Promise<string> {
     )
 
     if (nodes.length > 0) {
-      const nodeValues: any[][] = []
+      const nodeValues: unknown[][]= [] = []
       for (const node of nodes) {
         nodeValues.push([
           uuid(),
@@ -75,7 +78,7 @@ export async function analyzeRepo(request: AnalyzeRequest): Promise<string> {
     }
 
     if (edges.length > 0) {
-      const edgeValues: any[][] = []
+      const edgeValues: unknown[][]= [] = []
       for (const edge of edges) {
         edgeValues.push([uuid(), analysisId, edge.source, edge.target, edge.weight, edge.type])
       }
@@ -88,7 +91,7 @@ export async function analyzeRepo(request: AnalyzeRequest): Promise<string> {
     }
 
     if (commits.length > 0) {
-      const commitValues: any[][] = []
+      const commitValues: unknown[][]= [] = []
       for (const commit of commits) {
         commitValues.push([
           uuid(),
@@ -114,7 +117,7 @@ export async function analyzeRepo(request: AnalyzeRequest): Promise<string> {
 }
 
 export async function getAnalysis(analysisId: string): Promise<GitAnalysis | null> {
-  const analyses = await query<any>(
+  const analyses = await query<DbRow>(
     `SELECT a.*, p.id as proj_id, p.name as repo_name, p.source_type, p.source_path
      FROM analyses a
      JOIN projects p ON p.id = a.project_id
@@ -124,57 +127,57 @@ export async function getAnalysis(analysisId: string): Promise<GitAnalysis | nul
   if (analyses.length === 0) return null
 
   const a = analyses[0]
-  const nodes = await query<any>(
+  const nodes = await query<DbRow>(
     'SELECT * FROM file_nodes WHERE analysis_id = ?',
     [analysisId]
   )
-  const edges = await query<any>(
+  const edges = await query<DbRow>(
     'SELECT * FROM dependency_edges WHERE analysis_id = ?',
     [analysisId]
   )
-  const commits = await query<any>(
+  const commits = await query<DbRow>(
     'SELECT * FROM commit_snapshots WHERE analysis_id = ? ORDER BY date ASC',
     [analysisId]
   )
 
   return {
-    projectId: a.proj_id,
-    repoName: a.repo_name,
-    totalCommits: a.total_commits,
-    totalFiles: a.total_files,
+    projectId: a.proj_id as string,
+    repoName: a.repo_name as string,
+    totalCommits: a.total_commits as number,
+    totalFiles: a.total_files as number,
     analyzedAt: a.analyzed_at instanceof Date ? a.analyzed_at.toISOString() : String(a.analyzed_at),
-    nodes: nodes.map((n: any) => ({
-      id: n.path,
-      path: n.path,
-      name: n.name,
-      extension: n.extension,
-      commitCount: n.commit_count,
-      addedLines: n.added_lines,
-      deletedLines: n.deleted_lines,
+    nodes: nodes.map((n: DbRow) => ({
+      id: n.path as string,
+      path: n.path as string,
+      name: n.name as string,
+      extension: n.extension as string,
+      commitCount: n.commit_count as number,
+      addedLines: n.added_lines as number,
+      deletedLines: n.deleted_lines as number,
       heat: Number(n.heat),
-      risk: n.risk,
-      riskReason: n.risk_reason,
+      risk: n.risk as FileNode['risk'],
+      riskReason: n.risk_reason as string | undefined,
     })),
-    edges: edges.map((e: any) => ({
-      source: e.source,
-      target: e.target,
+    edges: edges.map((e: DbRow) => ({
+      source: e.source as string,
+      target: e.target as string,
       weight: Number(e.weight),
-      type: e.type,
+      type: e.type as DependencyEdge['type'],
     })),
-    commits: commits.map((c: any) => ({
-      hash: c.hash,
+    commits: commits.map((c: DbRow) => ({
+      hash: c.hash as string,
       date: c.date instanceof Date ? c.date.toISOString() : String(c.date),
-      message: c.message,
+      message: c.message as string,
       filesChanged: typeof c.files_changed === 'string'
         ? JSON.parse(c.files_changed)
-        : c.files_changed || [],
+        : (c.files_changed as string[]) || [],
       changeType: 'modified' as const,
     })),
   }
 }
 
 export async function getProjects() {
-  const rows = await query<any>(
+  const rows = await query<DbRow>(
     `SELECT p.*,
        MAX(a.analyzed_at) as last_analyzed_at,
        MAX(a.total_files) as file_count,
@@ -191,17 +194,17 @@ export async function getProjects() {
      ORDER BY last_analyzed_at DESC`
   )
 
-  return rows.map((r: any) => ({
-    id: r.id,
-    name: r.name,
-    sourceType: r.source_type,
-    sourceInfo: r.source_path,
+  return rows.map((r: DbRow) => ({
+    id: r.id as string,
+    name: r.name as string,
+    sourceType: r.source_type as 'local' | 'remote',
+    sourceInfo: r.source_path as string,
     lastAnalyzedAt: r.last_analyzed_at
       ? (r.last_analyzed_at instanceof Date ? r.last_analyzed_at.toISOString() : String(r.last_analyzed_at))
       : r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
-    fileCount: r.file_count || 0,
-    commitCount: r.commit_count || 0,
-    highRiskCount: r.high_risk_count || 0,
+    fileCount: (r.file_count as number) || 0,
+    commitCount: (r.commit_count as number) || 0,
+    highRiskCount: (r.high_risk_count as number) || 0,
   }))
 }
 

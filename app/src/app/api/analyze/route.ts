@@ -25,10 +25,11 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json({ analysisId })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : '分析失败'
     console.error('Analyze error:', error)
     return NextResponse.json(
-      { error: error.message || '分析失败' },
+      { error: message },
       { status: 500 }
     )
   }

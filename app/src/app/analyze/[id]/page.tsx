@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import { GitAnalysis } from '@/types/analysis'
 import FileGraph from '@/components/FileGraph'
 import Timeline from '@/components/Timeline'
@@ -56,9 +57,9 @@ export default function AnalysisPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-zinc-50 dark:bg-zinc-950">
         <p className="text-red-500">{error || '未找到分析结果'}</p>
-        <a href="/" className="text-blue-500 text-sm hover:underline">
+        <Link href="/" className="text-blue-500 text-sm hover:underline">
           返回首页
-        </a>
+        </Link>
       </div>
     )
   }
@@ -67,12 +68,12 @@ export default function AnalysisPage() {
     <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <a
+          <Link
             href="/"
             className="text-sm text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             Projects
-          </a>
+          </Link>
           <span className="text-zinc-300 dark:text-zinc-600">/</span>
           <span className="text-sm font-medium">{analysis.repoName}</span>
         </div>

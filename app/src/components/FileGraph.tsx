@@ -35,7 +35,10 @@ export default function FileGraph({
   const linkSelectionRef = useRef<d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown> | null>(null)
   const nodeGroupRef = useRef<d3.Selection<SVGGElement, SimNode, SVGGElement, unknown> | null>(null)
   const changedRef = useRef(changedFiles)
-  changedRef.current = changedFiles
+
+  useEffect(() => {
+    changedRef.current = changedFiles
+  }, [changedFiles])
 
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return

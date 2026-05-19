@@ -5,10 +5,11 @@ export async function GET() {
   try {
     const projects = await getProjects()
     return NextResponse.json({ projects })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : '获取项目列表失败'
     console.error('Get projects error:', error)
     return NextResponse.json(
-      { error: error.message || '获取项目列表失败' },
+      { error: message },
       { status: 500 }
     )
   }
@@ -23,10 +24,11 @@ export async function DELETE(request: NextRequest) {
     }
     await deleteProject(id)
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : '删除项目失败'
     console.error('Delete project error:', error)
     return NextResponse.json(
-      { error: error.message || '删除项目失败' },
+      { error: message },
       { status: 500 }
     )
   }

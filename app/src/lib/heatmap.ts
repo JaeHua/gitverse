@@ -3,8 +3,7 @@ import path from 'path'
 import { FileStat } from './git'
 
 export function calculateFileNodes(
-  fileStats: Map<string, FileStat>,
-  _repoDir: string
+  fileStats: Map<string, FileStat>
 ): FileNode[] {
   const stats = Array.from(fileStats.values())
   if (stats.length === 0) return []

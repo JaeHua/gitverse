@@ -14,10 +14,11 @@ export async function GET(
     }
 
     return NextResponse.json(analysis)
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : '获取分析结果失败'
     console.error('Get analysis error:', error)
     return NextResponse.json(
-      { error: error.message || '获取分析结果失败' },
+      { error: message },
       { status: 500 }
     )
   }
