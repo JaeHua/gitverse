@@ -28,16 +28,8 @@ function HomeContent() {
   }, [searchParams])
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'files' | 'risk'>('date')
-  const [loadingTimedOut, setLoadingTimedOut] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (status === 'loading') {
-      const t = setTimeout(() => setLoadingTimedOut(true), 2000)
-      return () => clearTimeout(t)
-    }
-    setLoadingTimedOut(false)
-  }, [status])
   const [repoSource, setRepoSource] = useState('')
   const [sourceType, setSourceType] = useState<'local' | 'remote'>('local')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
@@ -159,14 +151,7 @@ function HomeContent() {
         </div>
       </header>
 
-      {status === 'loading' && !loadingTimedOut ? (
-        <main className="max-w-5xl mx-auto px-6 py-12">
-          <div className="flex flex-col items-center justify-center gap-4 py-20">
-            <div className="w-6 h-6 border-2 border-zinc-300 border-t-blue-500 rounded-full animate-spin" />
-            <p className="text-sm text-zinc-400">加载中...</p>
-          </div>
-        </main>
-      ) : !isAuthenticated ? (
+      {status !== 'loading' && !isAuthenticated ? (
         /* Landing page for unauthenticated users */
         <main className="max-w-3xl mx-auto px-6 py-20">
           {authError && (
