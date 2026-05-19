@@ -28,18 +28,13 @@ interface TreeNode {
 }
 
 export default function FileTree({
-  nodes,
-  edges,
-  commits,
-  selectedNodeId,
-  onNodeSelect,
-  changedFiles,
-  currentCommitIndex,
-  fileTimeline,
+  nodes, edges, commits, selectedNodeId, onNodeSelect,
+  changedFiles, currentCommitIndex, fileTimeline,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const prevCommitRef = useRef(currentCommitIndex)
+  const animRef = useRef<Map<string, { type: string; time: number }>>(new Map())
 
-  // Compute when each file was first added / last deleted (by commit index)
   const fileLifecycle = useMemo(() => {
     const map = new Map<string, { addedAt: number; deletedAt: number }>()
     for (const [filePath, events] of Object.entries(fileTimeline)) {
@@ -56,313 +51,246 @@ export default function FileTree({
       }
       map.set(filePath, { addedAt, deletedAt })
     }
-
-    // For files without timeline data, assume they exist from the start
     for (const node of nodes) {
-      if (!map.has(node.id)) {
-        map.set(node.id, { addedAt: 0, deletedAt: -1 })
-      }
+      if (!map.has(node.id)) map.set(node.id, { addedAt: 0, deletedAt: -1 })
     }
     return map
   }, [fileTimeline, commits, nodes])
 
-  // Build directory tree respecting timeline position
   const treeData = useMemo(() => {
-    const root: TreeNode = {
-      name: '', path: '', heat: 0, risk: 'low', commitCount: 0,
-      children: [], addedAt: 0, deletedAt: -1,
-    }
-
+    const root: TreeNode = { name: '', path: '', heat: 0, risk: 'low', commitCount: 0, children: [], addedAt: 0, deletedAt: -1 }
     for (const node of nodes) {
-      const lifecycle = fileLifecycle.get(node.id)
-      if (!lifecycle) continue
-
-      // Skip files that haven't appeared yet at current timeline position
-      if (currentCommitIndex >= 0 && lifecycle.addedAt > currentCommitIndex) continue
-      // Skip files that have been deleted at current timeline position
-      if (currentCommitIndex >= 0 && lifecycle.deletedAt >= 0 && lifecycle.deletedAt <= currentCommitIndex) continue
+      const lc = fileLifecycle.get(node.id)
+      if (!lc) continue
+      if (currentCommitIndex >= 0 && lc.addedAt > currentCommitIndex) continue
+      if (currentCommitIndex >= 0 && lc.deletedAt >= 0 && lc.deletedAt <= currentCommitIndex) continue
 
       const parts = node.path.split('/')
-      let current = root
-
+      let cur = root
       for (let i = 0; i < parts.length; i++) {
-        const isLast = i === parts.length - 1
         const name = parts[i]
-        const fullPath = parts.slice(0, i + 1).join('/')
-
-        let child = current.children.find((c) => c.name === name)
+        const fp = parts.slice(0, i + 1).join('/')
+        let child = cur.children.find(c => c.name === name)
         if (!child) {
-          child = {
-            name, path: fullPath, heat: 0, risk: 'low', commitCount: 0,
-            children: [], addedAt: lifecycle.addedAt, deletedAt: lifecycle.deletedAt,
-          }
-          current.children.push(child)
+          child = { name, path: fp, heat: 0, risk: 'low', commitCount: 0, children: [], addedAt: lc.addedAt, deletedAt: lc.deletedAt }
+          cur.children.push(child)
         }
-        if (isLast) {
-          child.fileNode = node
-          child.heat = node.heat
-          child.risk = node.risk
-          child.commitCount = node.commitCount
+        if (i === parts.length - 1) {
+          child.fileNode = node; child.heat = node.heat; child.risk = node.risk; child.commitCount = node.commitCount
         } else {
           if (node.heat > child.heat) child.heat = node.heat
           if (node.risk === 'high') child.risk = 'high'
           else if (node.risk === 'medium' && child.risk !== 'high') child.risk = 'medium'
           child.commitCount += node.commitCount
         }
-        current = child
+        cur = child
       }
     }
-
-    // Sort: dirs first, then by name
-    function sortTree(n: TreeNode) {
+    const sort = (n: TreeNode) => {
       n.children.sort((a, b) => {
         if (!a.fileNode && b.fileNode) return -1
         if (a.fileNode && !b.fileNode) return 1
         return a.name.localeCompare(b.name)
       })
-      for (const c of n.children) sortTree(c)
+      n.children.forEach(sort)
     }
-    sortTree(root)
-
+    sort(root)
     return root
   }, [nodes, fileLifecycle, currentCommitIndex])
+
+  // Detect timeline changes for animation
+  useEffect(() => {
+    if (prevCommitRef.current !== currentCommitIndex) {
+      const now = Date.now()
+      for (const [cidx, c] of commits.entries()) {
+        if (cidx <= currentCommitIndex && cidx > prevCommitRef.current) {
+          for (const f of c.filesChanged || []) {
+            const lc = fileLifecycle.get(f)
+            const type = lc && lc.addedAt === cidx ? 'added' : lc && lc.deletedAt === cidx ? 'deleted' : 'modified'
+            animRef.current.set(f, { type, time: now })
+          }
+        }
+      }
+      prevCommitRef.current = currentCommitIndex
+    }
+  }, [currentCommitIndex, commits, fileLifecycle])
 
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return
 
     const svg = d3.select(svgRef.current)
     svg.selectAll('*').remove()
-
     const width = svgRef.current.clientWidth
 
-    // Marker for edges
+    // Defs
     const defs = svg.append('defs')
-    defs.append('marker')
-      .attr('id', 'arrow2')
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 8)
-      .attr('refY', 0)
-      .attr('markerWidth', 5)
-      .attr('markerHeight', 5)
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
-      .attr('fill', '#3b82f6')
-      .attr('opacity', 0.4)
+    defs.append('marker').attr('id', 'arr').attr('viewBox', '0 -5 10 10').attr('refX', 8).attr('refY', 0)
+      .attr('markerWidth', 5).attr('markerHeight', 5).attr('orient', 'auto')
+      .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#3b82f6').attr('opacity', 0.4)
+
+    // Glow filter
+    const filter = defs.append('filter').attr('id', 'glow')
+    filter.append('feGaussianBlur').attr('stdDeviation', '3').attr('result', 'blur')
+    const merge = filter.append('feMerge')
+    merge.append('feMergeNode').attr('in', 'blur')
+    merge.append('feMergeNode').attr('in', 'SourceGraphic')
 
     const g = svg.append('g')
 
     const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.15, 3])
-      .on('zoom', (event) => {
-        g.attr('transform', event.transform)
-      })
-
+      .scaleExtent([0.15, 4])
+      .on('zoom', (event) => g.attr('transform', event.transform))
     svg.call(zoom)
-    svg.call(zoom.transform, d3.zoomIdentity.translate(width / 2, 40))
+    svg.call(zoom.transform, d3.zoomIdentity.translate(width / 2, 50).scale(1.2))
 
     const root = d3.hierarchy<TreeNode>(treeData)
-    const treeLayout = d3.tree<TreeNode>()
-      .nodeSize([26, 50])
-      .separation((a, b) => (a.parent === b.parent ? 1 : 1.2))
-
-    treeLayout(root)
+    d3.tree<TreeNode>().nodeSize([28, 50]).separation((a, b) => a.parent === b.parent ? 1 : 1.3)(root)
 
     const allNodes = root.descendants() as d3.HierarchyPointNode<TreeNode>[]
-    const nodePositions = new Map<string, { x: number; y: number; isFile: boolean }>()
-    for (const d of allNodes) {
-      nodePositions.set(d.data.path, { x: d.x ?? 0, y: d.y ?? 0, isFile: !!d.data.fileNode })
-    }
+    const pos = new Map<string, { x: number; y: number; isFile: boolean }>()
+    for (const d of allNodes) pos.set(d.data.path, { x: d.x ?? 0, y: d.y ?? 0, isFile: !!d.data.fileNode })
 
-    // Draw dependency edges
-    const edgeData = edges.filter((e) => {
-      const src = nodePositions.get(e.source)
-      const tgt = nodePositions.get(e.target)
-      return src && tgt
-    })
-
+    // Dependency edges
+    const edgeData = edges.filter(e => pos.get(e.source) && pos.get(e.target))
     if (edgeData.length > 0) {
-      g.append('g')
-        .selectAll('path')
-        .data(edgeData)
-        .join('path')
-        .attr('d', (d) => {
-          const src = nodePositions.get(d.source)!
-          const tgt = nodePositions.get(d.target)!
-          return `M${src.x},${src.y}C${(src.x + tgt.x) / 2},${(src.y + tgt.y) / 2} ${(src.x + tgt.x) / 2},${(src.y + tgt.y) / 2} ${tgt.x},${tgt.y}`
+      g.append('g').selectAll('path').data(edgeData).join('path')
+        .attr('d', d => {
+          const s = pos.get(d.source)!, t = pos.get(d.target)!
+          return `M${s.x},${s.y}C${(s.x + t.x) / 2},${(s.y + t.y) / 2} ${(s.x + t.x) / 2},${(s.y + t.y) / 2} ${t.x},${t.y}`
         })
-        .attr('fill', 'none')
-        .attr('stroke', '#3b82f6')
-        .attr('stroke-width', (d) => Math.max(d.weight / 25, 0.4))
+        .attr('fill', 'none').attr('stroke', '#3b82f6')
+        .attr('stroke-width', d => Math.max(d.weight / 25, 0.4))
         .attr('stroke-opacity', 0.2)
-        .attr('marker-end', 'url(#arrow2)')
+        .attr('marker-end', 'url(#arr)')
         .style('pointer-events', 'none')
     }
 
-    // Tree links (vertical)
-    g.append('g')
-      .selectAll('path')
+    // Tree links
+    g.append('g').selectAll('path')
       .data(root.links() as d3.HierarchyPointLink<TreeNode>[])
       .join('path')
-      .attr('d', (d) => {
-        return d3.linkVertical<d3.HierarchyPointLink<TreeNode>, d3.HierarchyPointNode<TreeNode>>()
-          .x((n: d3.HierarchyPointNode<TreeNode>) => n.x ?? 0)
-          .y((n: d3.HierarchyPointNode<TreeNode>) => n.y ?? 0)(d as unknown as d3.HierarchyPointLink<TreeNode>)
-      })
-      .attr('fill', 'none')
-      .attr('stroke', '#e4e4e7')
-      .attr('stroke-width', 0.8)
+      .attr('d', d => d3.linkVertical<d3.HierarchyPointLink<TreeNode>, d3.HierarchyPointNode<TreeNode>>()
+        .x(n => n.x ?? 0).y(n => n.y ?? 0)(d as unknown as d3.HierarchyPointLink<TreeNode>))
+      .attr('fill', 'none').attr('stroke', '#e4e4e7').attr('stroke-width', 0.7)
       .style('pointer-events', 'none')
 
-    // Node groups
-    const nodeGroup = g.append('g')
-      .selectAll('g')
+    // Nodes
+    const nodeG = g.append('g').selectAll('g')
       .data(root.descendants() as d3.HierarchyPointNode<TreeNode>[])
       .join('g')
-      .attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
-      .attr('cursor', (d) => d.data.fileNode ? 'pointer' : 'default')
-      .attr('opacity', (d) => {
-        // Gray out files that are being added/deleted at current position
-        if (currentCommitIndex < 0) return 1
-        const lifecycle = fileLifecycle.get(d.data.path)
-        if (!lifecycle) return 1
-        if (Math.abs(lifecycle.addedAt - currentCommitIndex) <= 2 && lifecycle.addedAt >= 0) return 0.5
-        if (lifecycle.deletedAt >= 0 && Math.abs(lifecycle.deletedAt - currentCommitIndex) <= 2) return 0.5
-        return 1
-      })
+      .attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
+      .attr('cursor', d => d.data.fileNode ? 'pointer' : 'default')
+
+    // Directory icons
+    nodeG.filter(d => !d.data.fileNode)
+      .append('rect')
+      .attr('x', -7).attr('y', -5).attr('width', 14).attr('height', 10).attr('rx', 2)
+      .attr('fill', d => d.depth <= 2 ? '#a1a1aa' : '#d4d4d8')
+      .attr('opacity', 0.6)
+
+    // Directory labels (always visible, top-level and depth-2)
+    nodeG.filter(d => !d.data.fileNode && d.depth <= 3)
+      .append('text')
+      .attr('dy', -8).attr('text-anchor', 'middle')
+      .text(d => d.data.name)
+      .attr('font-size', d => d.depth <= 1 ? '12px' : '10px')
+      .attr('font-weight', d => d.depth <= 1 ? '600' : '500')
+      .attr('fill', '#a1a1aa').attr('font-family', 'system-ui')
+      .style('pointer-events', 'none')
 
     // File circles
-    nodeGroup
-      .filter((d) => !!d.data.fileNode)
+    nodeG.filter(d => !!d.data.fileNode)
       .append('circle')
-      .attr('r', (d) => Math.max(5, d.data.heat / 5 + 5))
-      .attr('fill', (d) => {
-        if (d.data.risk === 'high') return '#ef4444'
-        if (d.data.risk === 'medium') return '#eab308'
-        return '#22c55e'
-      })
+      .attr('r', d => Math.max(4, d.data.heat / 7 + 4))
+      .attr('fill', d => d.data.risk === 'high' ? '#ef4444' : d.data.risk === 'medium' ? '#eab308' : '#22c55e')
       .attr('fill-opacity', 0.85)
       .attr('stroke', 'none')
       .attr('stroke-width', 2)
+      .style('transition', 'r 0.3s ease')
 
-    // New file indicator (ring for recently added)
-    nodeGroup
-      .filter((d) => {
-        if (!d.data.fileNode || currentCommitIndex < 0) return false
-        const lc = fileLifecycle.get(d.data.path)
-        return !!(lc && lc.addedAt === currentCommitIndex)
-      })
-      .append('circle')
-      .attr('r', (d) => Math.max(5, d.data.heat / 5 + 5) + 3)
-      .attr('fill', 'none')
-      .attr('stroke', '#22c55e')
-      .attr('stroke-width', 2)
-      .attr('stroke-dasharray', '3,3')
-
-    // Deleted file indicator
-    nodeGroup
-      .filter((d) => {
-        if (!d.data.fileNode || currentCommitIndex < 0) return false
-        const lc = fileLifecycle.get(d.data.path)
-        return !!(lc && lc.deletedAt >= 0 && lc.deletedAt <= currentCommitIndex + 1)
-      })
-      .append('line')
-      .attr('x1', (d) => -(Math.max(5, d.data.heat / 5 + 5)) * 0.7)
-      .attr('y1', (d) => -(Math.max(5, d.data.heat / 5 + 5)) * 0.7)
-      .attr('x2', (d) => Math.max(5, d.data.heat / 5 + 5) * 0.7)
-      .attr('y2', (d) => Math.max(5, d.data.heat / 5 + 5) * 0.7)
-      .attr('stroke', '#ef4444')
-      .attr('stroke-width', 2)
-
-    // Directory labels (above icon)
-    nodeGroup
-      .filter((d) => !d.data.fileNode)
+    // File labels (hidden by default, shown on hover/select)
+    nodeG.filter(d => !!d.data.fileNode)
       .append('text')
-      .attr('dy', -8)
+      .attr('dy', d => Math.max(4, d.data.heat / 7 + 4) + 12)
       .attr('text-anchor', 'middle')
-      .text((d) => d.data.name)
-      .attr('font-size', '11px')
-      .attr('font-weight', '600')
-      .attr('fill', '#a1a1aa')
-      .attr('font-family', 'system-ui')
+      .text(d => truncate(d.data.name, 16))
+      .attr('font-size', '9px').attr('fill', '#71717a').attr('font-family', 'monospace')
+      .attr('opacity', d => d.data.path === selectedNodeId ? 1 : 0)
       .style('pointer-events', 'none')
+      .style('transition', 'opacity 0.2s')
 
-    // File labels (below circle)
-    nodeGroup
-      .filter((d) => !!d.data.fileNode)
-      .append('text')
-      .attr('dy', (d) => Math.max(5, d.data.heat / 5 + 5) + 12)
-      .attr('text-anchor', 'middle')
-      .text((d) => d.data.name)
-      .attr('font-size', '10px')
-      .attr('fill', '#71717a')
-      .attr('font-family', 'monospace')
-      .style('pointer-events', 'none')
-
-    // Click
-    nodeGroup.on('click', (_event, d) => {
-      if (d.data.fileNode) {
-        onNodeSelect(d.data.path === selectedNodeId ? null : d.data.path)
-      }
-    })
-
-    // Hover
-    nodeGroup.on('mouseenter', (_event, d) => {
+    // Hover: show label + highlight circle
+    nodeG.on('mouseenter', function(_e, d) {
       if (!d.data.fileNode) return
+      const sel = d3.select(this)
+      sel.select('circle')
+        .attr('r', Math.max(4, d.data.heat / 7 + 4) + 2)
+        .attr('stroke', '#3b82f6').attr('stroke-width', 2)
+      sel.select('text').attr('opacity', 1)
       svg.selectAll<SVGPathElement, DependencyEdge>('path[marker-end]')
-        .attr('stroke-opacity', (e) =>
-          (e.source === d.data.path || e.target === d.data.path) ? 0.7 : 0.05
-        )
-        .attr('stroke-width', (e) =>
-          (e.source === d.data.path || e.target === d.data.path)
-            ? Math.max(e.weight / 12, 1)
-            : Math.max(e.weight / 25, 0.4)
-        )
+        .attr('stroke-opacity', e => (e.source === d.data.path || e.target === d.data.path) ? 0.6 : 0.05)
+        .attr('stroke-width', e => (e.source === d.data.path || e.target === d.data.path) ? Math.max(e.weight / 12, 1) : Math.max(e.weight / 25, 0.4))
     })
 
-    nodeGroup.on('mouseleave', () => {
+    nodeG.on('mouseleave', function(_e, d) {
+      const sel = d3.select(this)
+      sel.select('circle')
+        .attr('r', Math.max(4, d.data.heat / 7 + 4))
+        .attr('stroke', 'none')
+      sel.select('text').attr('opacity', d.data.path === selectedNodeId ? 1 : 0)
       svg.selectAll<SVGPathElement, DependencyEdge>('path[marker-end]')
         .attr('stroke-opacity', 0.2)
-        .attr('stroke-width', (e: DependencyEdge) => Math.max(e.weight / 25, 0.4))
+        .attr('stroke-width', (e: DependencyEdge) => Math.max((e as DependencyEdge).weight / 25, 0.4))
     })
 
-  }, [treeData, edges, fileLifecycle, currentCommitIndex, nodes.length, selectedNodeId, onNodeSelect])
+    // Click
+    nodeG.on('click', (_e, d) => {
+      if (d.data.fileNode) onNodeSelect(d.data.path === selectedNodeId ? null : d.data.path)
+    })
 
-  // Highlight on selection or timeline change
-  useEffect(() => {
-    if (!svgRef.current) return
-    const svg = d3.select(svgRef.current)
-    svg.selectAll<SVGCircleElement, d3.HierarchyPointNode<TreeNode>>('circle')
-      .attr('stroke', (d) => {
-        if (changedFiles.includes(d.data.path)) return '#f59e0b'
-        if (d.data.path === selectedNodeId) return '#3b82f6'
-        return 'none'
-      })
-      .attr('stroke-width', (d) => {
-        if (changedFiles.includes(d.data.path)) return 3
-        if (d.data.path === selectedNodeId) return 2.5
-        return 2
-      })
-  }, [changedFiles, selectedNodeId])
+    // Selection highlight
+    nodeG.filter(d => d.data.path === selectedNodeId)
+      .select('circle')
+      .attr('stroke', '#3b82f6').attr('stroke-width', 2.5)
+    nodeG.filter(d => d.data.path === selectedNodeId)
+      .select('text').attr('opacity', 1)
 
-  if (nodes.length === 0) {
-    return (
-      <div className="w-full h-full flex items-center justify-center text-sm text-zinc-400">
-        暂无文件数据
-      </div>
-    )
-  }
+    // Timeline changed file highlights
+    for (const f of changedFiles) {
+      nodeG.filter(d => d.data.path === f)
+        .select('circle')
+        .attr('stroke', '#f59e0b').attr('stroke-width', 3)
+      nodeG.filter(d => d.data.path === f)
+        .select('text').attr('opacity', 1)
+    }
+
+    // Animation: nodes that just appeared
+    const now = Date.now()
+    for (const [fp, anim] of animRef.current) {
+      if (now - anim.time > 5000) continue
+      nodeG.filter(d => d.data.path === fp && !!d.data.fileNode)
+        .select('circle')
+        .attr('filter', 'url(#glow)')
+        .transition().duration(5000).attr('filter', null)
+    }
+
+  }, [treeData, edges, selectedNodeId, changedFiles, nodes.length, fileLifecycle, onNodeSelect])
+
+  if (nodes.length === 0) return <div className="w-full h-full flex items-center justify-center text-sm text-zinc-400">暂无文件数据</div>
 
   return (
     <div className="w-full h-full relative">
       <svg ref={svgRef} className="w-full h-full" />
       <div className="absolute bottom-3 right-3 flex gap-2 text-[10px]">
-        <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded">● 低风险</span>
-        <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="text-yellow-500">●</span> 中风险</span>
-        <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="text-red-500">●</span> 高风险</span>
-        <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="text-green-500">---</span> 新增</span>
-        <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="text-red-500">X</span> 删除</span>
+        <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />低</span>
+        <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" />中</span>
+        <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />高</span>
+        <span className="flex items-center gap-1 bg-white/80 dark:bg-zinc-900/80 px-2 py-1 rounded"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />变更</span>
       </div>
     </div>
   )
+}
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 2) + '..' : s
 }
