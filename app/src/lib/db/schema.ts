@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS analyses (
   project_id VARCHAR(36) NOT NULL,
   total_commits INT NOT NULL DEFAULT 0,
   total_files INT NOT NULL DEFAULT 0,
+  file_timeline JSON,
   analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

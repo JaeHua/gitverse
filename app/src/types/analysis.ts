@@ -7,6 +7,12 @@ export interface GitAnalysis {
   nodes: FileNode[]
   edges: DependencyEdge[]
   commits: CommitSnapshot[]
+  fileTimeline: Record<string, FileTimelineEvent[]>
+}
+
+export interface FileTimelineEvent {
+  date: string
+  type: 'added' | 'modified' | 'deleted'
 }
 
 export interface FileNode {

@@ -116,6 +116,7 @@ export default function AnalysisPage() {
           commits={analysis.commits}
           currentIndex={currentCommitIndex}
           onChange={setCurrentCommitIndex}
+          fileTimeline={analysis.fileTimeline}
         />
       </div>
     </div>

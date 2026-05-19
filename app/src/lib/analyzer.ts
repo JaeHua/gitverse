@@ -25,7 +25,7 @@ export async function analyzeRepo(
 
   try {
     const commits = await getCommits(git, maxCommits)
-    const fileStats = await getFileStats(git, maxCommits)
+    const { fileStats, fileTimeline } = await getFileStats(git, maxCommits)
 
     const sourceFiles = getSourceFiles(repoDir).map((f) => path.relative(repoDir, f))
     const nodes = calculateFileNodes(fileStats)
@@ -35,6 +35,12 @@ export async function analyzeRepo(
 
     const analysisId = uuid()
     const projectId = uuid()
+
+    // Convert Map to plain object for JSON storage
+    const fileTimelineObj: Record<string, Array<{ date: string; type: string }>> = {}
+    for (const [filePath, events] of fileTimeline) {
+      fileTimelineObj[filePath] = events
+    }
 
     await query(
       `INSERT INTO projects (id, user_id, name, source_type, source_path)
@@ -51,13 +57,13 @@ export async function analyzeRepo(
     )
 
     await query(
-      `INSERT INTO analyses (id, project_id, total_commits, total_files)
-       VALUES (?, ?, ?, ?)`,
-      [analysisId, projectId, commits.length, nodes.length]
+      `INSERT INTO analyses (id, project_id, total_commits, total_files, file_timeline)
+       VALUES (?, ?, ?, ?, ?)`,
+      [analysisId, projectId, commits.length, nodes.length, JSON.stringify(fileTimelineObj)]
     )
 
     if (nodes.length > 0) {
-      const nodeValues: unknown[][]= [] = []
+      const nodeValues: unknown[][] = []
       for (const node of nodes) {
         nodeValues.push([
           uuid(),
@@ -82,7 +88,7 @@ export async function analyzeRepo(
     }
 
     if (edges.length > 0) {
-      const edgeValues: unknown[][]= [] = []
+      const edgeValues: unknown[][] = []
       for (const edge of edges) {
         edgeValues.push([uuid(), analysisId, edge.source, edge.target, edge.weight, edge.type])
       }
@@ -95,7 +101,7 @@ export async function analyzeRepo(
     }
 
     if (commits.length > 0) {
-      const commitValues: unknown[][]= [] = []
+      const commitValues: unknown[][] = []
       for (const commit of commits) {
         commitValues.push([
           uuid(),
@@ -144,12 +150,24 @@ export async function getAnalysis(analysisId: string): Promise<GitAnalysis | nul
     [analysisId]
   )
 
+  let fileTimeline: Record<string, Array<{ date: string; type: string }>> = {}
+  try {
+    if (typeof a.file_timeline === 'string') {
+      fileTimeline = JSON.parse(a.file_timeline)
+    } else if (a.file_timeline) {
+      fileTimeline = a.file_timeline as unknown as Record<string, Array<{ date: string; type: string }>>
+    }
+  } catch {
+    // ignore timeline parse errors
+  }
+
   return {
     projectId: a.proj_id as string,
     repoName: a.repo_name as string,
     totalCommits: a.total_commits as number,
     totalFiles: a.total_files as number,
     analyzedAt: a.analyzed_at instanceof Date ? a.analyzed_at.toISOString() : String(a.analyzed_at),
+    fileTimeline: fileTimeline as GitAnalysis['fileTimeline'],
     nodes: nodes.map((n: DbRow) => ({
       id: n.path as string,
       path: n.path as string,
