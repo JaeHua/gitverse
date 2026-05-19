@@ -27,7 +27,16 @@ function HomeContent() {
   }, [searchParams])
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'files' | 'risk'>('date')
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false)
   const [repoSource, setRepoSource] = useState('')
+
+  useEffect(() => {
+    if (status === 'loading') {
+      const t = setTimeout(() => setLoadingTimedOut(true), 3000)
+      return () => clearTimeout(t)
+    }
+    setLoadingTimedOut(false)
+  }, [status])
   const [sourceType, setSourceType] = useState<'local' | 'remote'>('local')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [loading, setLoading] = useState(false)
@@ -145,7 +154,7 @@ function HomeContent() {
         </div>
       </header>
 
-      {status === 'loading' ? (
+      {status === 'loading' && !loadingTimedOut ? (
         <main className="max-w-5xl mx-auto px-6 py-12">
           <div className="flex flex-col items-center justify-center gap-4 py-20">
             <div className="w-6 h-6 border-2 border-zinc-300 border-t-blue-500 rounded-full animate-spin" />
