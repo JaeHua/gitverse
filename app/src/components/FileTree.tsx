@@ -134,7 +134,6 @@ export default function FileTree({
     svg.selectAll('*').remove()
 
     const width = svgRef.current.clientWidth
-    const height = svgRef.current.clientHeight
 
     // Marker for edges
     const defs = svg.append('defs')

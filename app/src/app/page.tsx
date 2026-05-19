@@ -117,6 +117,9 @@ function HomeContent() {
             </svg>
             <span className="text-lg tracking-tight">Gitverse</span>
           </Link>
+          <Link href="/settings" className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+            设置
+          </Link>
           <AuthButton />
         </div>
       </header>
