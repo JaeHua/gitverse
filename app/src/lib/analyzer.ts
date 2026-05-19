@@ -25,7 +25,12 @@ export async function analyzeRepo(
 
   try {
     const commits = await getCommits(git, maxCommits)
-    const { fileStats, fileTimeline } = await getFileStats(git, maxCommits)
+    const { fileStats, fileTimeline, commitFiles } = await getFileStats(git, maxCommits)
+
+    // Populate filesChanged from commitFiles data
+    for (const commit of commits) {
+      commit.filesChanged = commitFiles.get(commit.hash) || []
+    }
 
     const sourceFiles = getSourceFiles(repoDir).map((f) => path.relative(repoDir, f))
     const nodes = calculateFileNodes(fileStats)

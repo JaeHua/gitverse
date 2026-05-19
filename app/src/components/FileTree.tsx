@@ -210,18 +210,20 @@ export default function FileTree({
       .attr('stroke-width', 2)
       .style('transition', 'r 0.3s ease')
 
-    // File labels (hidden by default, shown on hover/select)
+    // File labels (permanent, alternating above/below to avoid overlap)
     nodeG.filter(d => !!d.data.fileNode)
       .append('text')
-      .attr('dy', d => Math.max(4, d.data.heat / 7 + 4) + 12)
+      .attr('dy', (d, i) => {
+        const offset = Math.max(4, d.data.heat / 7 + 4) + 10
+        return (i % 2 === 0) ? -offset : offset
+      })
       .attr('text-anchor', 'middle')
-      .text(d => truncate(d.data.name, 16))
-      .attr('font-size', '9px').attr('fill', '#71717a').attr('font-family', 'monospace')
-      .attr('opacity', d => d.data.path === selectedNodeId ? 1 : 0)
+      .text(d => truncate(d.data.name, 14))
+      .attr('font-size', '8px').attr('fill', '#71717a').attr('font-family', 'monospace')
+      .attr('opacity', 0.65)
       .style('pointer-events', 'none')
-      .style('transition', 'opacity 0.2s')
 
-    // Hover: show label + highlight circle
+    // Hover: highlight circle + show full name
     nodeG.on('mouseenter', function(_e, d) {
       if (!d.data.fileNode) return
       const sel = d3.select(this)
@@ -232,6 +234,17 @@ export default function FileTree({
       svg.selectAll<SVGPathElement, DependencyEdge>('path[marker-end]')
         .attr('stroke-opacity', e => (e.source === d.data.path || e.target === d.data.path) ? 0.6 : 0.05)
         .attr('stroke-width', e => (e.source === d.data.path || e.target === d.data.path) ? Math.max(e.weight / 12, 1) : Math.max(e.weight / 25, 0.4))
+    })
+
+    nodeG.on('mouseleave', function(_e, d) {
+      const sel = d3.select(this)
+      sel.select('circle')
+        .attr('r', Math.max(4, d.data.heat / 7 + 4))
+        .attr('stroke', 'none')
+      sel.select('text').attr('opacity', d.data.path === selectedNodeId ? 1 : 0.65)
+      svg.selectAll<SVGPathElement, DependencyEdge>('path[marker-end]')
+        .attr('stroke-opacity', 0.2)
+        .attr('stroke-width', (e: DependencyEdge) => Math.max((e as DependencyEdge).weight / 25, 0.4))
     })
 
     nodeG.on('mouseleave', function(_e, d) {
@@ -255,23 +268,7 @@ export default function FileTree({
       .select('circle')
       .attr('stroke', '#3b82f6').attr('stroke-width', 2.5)
     nodeG.filter(d => d.data.path === selectedNodeId)
-      .select('text').attr('opacity', 1)
-
-    // Focus animation: auto-pan to changed files on timeline step
-    if (changedFiles.length > 0 && changedFiles.length <= 10 && zoomRef.current) {
-      const changedPositions = changedFiles.map(f => pos.get(f)).filter(Boolean) as { x: number; y: number }[]
-      if (changedPositions.length > 0) {
-        const cx = changedPositions.reduce((s, p) => s + p.x, 0) / changedPositions.length
-        const cy = changedPositions.reduce((s, p) => s + p.y, 0) / changedPositions.length
-        const svgEl = svgRef.current!
-        const sw = svgEl.clientWidth
-        const sh = svgEl.clientHeight
-        svg.transition().duration(600).call(
-          zoomRef.current!.transform as any,
-          d3.zoomIdentity.translate(sw / 2 - cx * 1.2, sh / 2 - cy * 1.2).scale(1.2)
-        )
-      }
-    }
+      .select('text').attr('opacity', 1).attr('font-weight', '700')
 
     // Timeline changed file highlights
     for (const f of changedFiles) {

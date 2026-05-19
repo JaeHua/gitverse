@@ -63,16 +63,15 @@ export async function getFileStats(
 ): Promise<{
   fileStats: Map<string, FileStat>
   fileTimeline: Map<string, Array<{ date: string; type: 'added' | 'modified' | 'deleted' }>>
+  commitFiles: Map<string, string[]>
 }> {
   const fileStats = new Map<string, FileStat>()
   const fileTimeline = new Map<string, Array<{ date: string; type: 'added' | 'modified' | 'deleted' }>>()
+  const commitFiles = new Map<string, string[]>()
 
   const log = await git.log({ maxCount: maxCommits })
 
-  // Process commits in reverse (oldest first) for timeline
-  const reversed = [...log.all].reverse()
-
-  for (const entry of reversed) {
+  for (const entry of log.all) {
     let diff: string
     try {
       diff = await git.show(['--name-status', '--format=', '--diff-filter=ACDMR', entry.hash])
@@ -80,24 +79,25 @@ export async function getFileStats(
       continue
     }
 
+    const changedPaths: string[] = []
     const lines = diff.split('\n').filter(Boolean)
     for (const line of lines) {
       const [status, ...filePathParts] = line.split('\t')
       const filePath = filePathParts.join('\t')
       if (!filePath) continue
 
+      changedPaths.push(filePath)
+
       let changeType: 'added' | 'modified' | 'deleted' = 'modified'
       if (status.startsWith('A')) changeType = 'added'
       else if (status.startsWith('D')) changeType = 'deleted'
       else if (status.startsWith('R')) changeType = 'added'
 
-      // Track file timeline
       if (!fileTimeline.has(filePath)) {
         fileTimeline.set(filePath, [])
       }
       fileTimeline.get(filePath)!.push({ date: entry.date, type: changeType })
 
-      // Track file stats
       const existing = fileStats.get(filePath)
       if (!existing) {
         fileStats.set(filePath, {
@@ -113,6 +113,8 @@ export async function getFileStats(
         existing.lastModified = entry.date
       }
     }
+
+    commitFiles.set(entry.hash, changedPaths)
   }
 
   // Get line counts from numstat (bulk operation, faster)
@@ -151,7 +153,7 @@ export async function getFileStats(
     // line counts are optional, stats work without them
   }
 
-  return { fileStats, fileTimeline }
+  return { fileStats, fileTimeline, commitFiles }
 }
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue', '.svelte']
