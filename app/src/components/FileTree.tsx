@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useRef, useMemo, useState } from 'react'
 import * as d3 from 'd3'
@@ -86,11 +87,9 @@ export default function FileTree({
 
     const svg = d3.select(svgRef.current)
     const w = svgRef.current.clientWidth
-    const playing = currentCommitIndex >= 0
     const fwd = currentCommitIndex > prevIdx.current
     const prevSet = prevPaths.current
     const prevBrSet = prevBranches.current
-    const ANIM = playing && fwd ? 6000 : 300
     const BRANCH_END = 2000
 
     // Fade out old content
@@ -266,6 +265,7 @@ export default function FileTree({
     prevBranches.current = currentBranches
     prevIdx.current = currentCommitIndex
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [treeData, edges, selectedNodeId, nodes.length, onNodeSelect, currentCommitIndex, changedFiles])
 
   if (nodes.length === 0) return <div className="w-full h-full flex items-center justify-center text-sm text-zinc-400">暂无文件数据</div>

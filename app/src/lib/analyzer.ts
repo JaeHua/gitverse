@@ -172,6 +172,7 @@ export async function getAnalysis(analysisId: string): Promise<GitAnalysis | nul
     totalCommits: a.total_commits as number,
     totalFiles: a.total_files as number,
     analyzedAt: a.analyzed_at instanceof Date ? a.analyzed_at.toISOString() : String(a.analyzed_at),
+    projectReadme: (a.project_readme as string) || '',
     fileTimeline: fileTimeline as GitAnalysis['fileTimeline'],
     nodes: nodes.map((n: DbRow) => ({
       id: n.path as string,
@@ -241,4 +242,8 @@ export async function getProjects(userId: string) {
 
 export async function deleteProject(projectId: string, userId: string) {
   await query('DELETE FROM projects WHERE id = ? AND user_id = ?', [projectId, userId])
+}
+
+export async function saveProjectReadme(analysisId: string, content: string) {
+  await query('UPDATE analyses SET project_readme = ? WHERE id = ?', [content, analysisId])
 }

@@ -4,6 +4,7 @@ export interface GitAnalysis {
   totalCommits: number
   totalFiles: number
   analyzedAt: string
+  projectReadme: string
   nodes: FileNode[]
   edges: DependencyEdge[]
   commits: CommitSnapshot[]

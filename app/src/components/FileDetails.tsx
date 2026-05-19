@@ -163,7 +163,7 @@ export default function FileDetails({ node, edges }: Props) {
           <button
             onClick={askAI}
             disabled={aiLoading}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500 to-blue-500 text-white text-xs font-medium hover:from-violet-600 hover:to-blue-600 disabled:opacity-50 transition-all"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
           >
             {aiLoading ? (
               <span className="flex items-center gap-2">
@@ -186,12 +186,12 @@ export default function FileDetails({ node, edges }: Props) {
           )}
 
           {aiResult && (
-            <div className="mt-3 p-3 rounded-lg bg-violet-50 dark:bg-violet-950 border border-violet-100 dark:border-violet-900">
+            <div className="mt-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700">
               <div className="flex items-center gap-1.5 mb-1.5">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="#8b5cf6">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="#6b7280">
                   <path d="M12 2a4 4 0 0 1 4 4v1h2a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2V6a4 4 0 0 1 4-4z"/>
                 </svg>
-                <span className="text-[10px] text-violet-500 font-medium">AI 解读</span>
+                <span className="text-[10px] text-zinc-500 font-medium">AI 解读</span>
               </div>
               <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">
                 {aiResult}
