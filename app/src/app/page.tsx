@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense, useMemo } from 'react'
+import { useState, useEffect, Suspense, useMemo, useRef } from 'react'
 import { useSession, signIn } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -38,17 +38,20 @@ function HomeContent() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
+  const loadedRef = useRef(false)
+
   useEffect(() => {
-    if (session) loadProjects()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (session && !loadedRef.current) {
+      loadProjects()
+      loadedRef.current = true
+    }
   }, [session])
 
-  // Handle browser back/forward navigation (BFCache restore)
+  // BFCache restore
   useEffect(() => {
-    const handler = () => { if (session) loadProjects() }
-    window.addEventListener('pageshow', handler)
-    return () => window.removeEventListener('pageshow', handler)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const onShow = () => { if (session) loadProjects() }
+    window.addEventListener('pageshow', onShow)
+    return () => window.removeEventListener('pageshow', onShow)
   }, [session])
 
   async function loadProjects() {
