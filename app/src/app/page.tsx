@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense, useMemo, useRef } from 'react'
+import { useState, useEffect, Suspense, useMemo } from 'react'
 import { useSession, signIn } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -38,20 +38,17 @@ function HomeContent() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
-  const loadedRef = useRef(false)
+  useEffect(() => {
+    // Always try to load on mount, regardless of session state
+    // The API will return 401 if not authenticated (handled silently)
+    const t = setTimeout(loadProjects, 100)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
-    if (session && !loadedRef.current) {
-      loadProjects()
-      loadedRef.current = true
-    }
-  }, [session])
-
-  // BFCache restore
-  useEffect(() => {
-    const onShow = () => { if (session) loadProjects() }
-    window.addEventListener('pageshow', onShow)
-    return () => window.removeEventListener('pageshow', onShow)
+    loadProjects()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session])
 
   async function loadProjects() {
