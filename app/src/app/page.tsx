@@ -41,7 +41,15 @@ function HomeContent() {
   useEffect(() => {
     if (session) loadProjects()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, status])
+  }, [session])
+
+  // Handle browser back/forward navigation (BFCache restore)
+  useEffect(() => {
+    const handler = () => { if (session) loadProjects() }
+    window.addEventListener('pageshow', handler)
+    return () => window.removeEventListener('pageshow', handler)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session])
 
   async function loadProjects() {
     try {
