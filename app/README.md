@@ -1,92 +1,128 @@
-Gitverse
+# Gitverse
 
-产品介绍
+可视化代码演进与依赖分析工具。将 Git 仓库可视化为一个缓慢演化的生命系统——目录树展示文件结构，时间轴播放提交历史，依赖连线揭示模块关系，AI 辅助解读文件角色与风险。
 
-Gitverse 是一个可视化代码演进与依赖分析工具，旨在帮助开发者和团队快速理解大型项目的历史演进和核心模块。通过节点式可视化和时间轴动画，用户可以轻松查看文件提交频率、模块间依赖关系，以及技术债高发区，从而提高研发效率和协作效果。
+## 核心功能
 
-核心功能
+- **目录树可视化**：文件按目录层级展开，节点大小和颜色反映修改热度和风险等级。支持折叠/展开文件夹。
+- **依赖关系图**：import 依赖以弧线连接，箭头表示导入方向，线条粗细表示依赖强度。
+- **时间轴演进**：播放 Git 提交历史，树从最初几个文件动态生长——新增文件有机长出，修改文件轻微脉动，删除文件渐隐消失。
+- **风险热点识别**：自动标记高频修改和高耦合文件，红色=高风险，黄色=中风险，绿色=低风险。
+- **AI 分析**：集成 DeepSeek API，点击文件节点可获取 AI 解读——文件角色、修改模式、改进建议。
+- **多项目管理**：支持本地路径和远程 Git 仓库 URL，按 GitHub 用户隔离数据。
 
-文件关系图：节点表示文件或模块，大小和颜色表示提交频率与热度，边表示依赖关系。
+## 技术栈
 
-时间轴演进：可按时间轴播放项目历史演化，展示合并、修改、删除等状态变化。
+| 层 | 技术 |
+|---|------|
+| 框架 | Next.js 16 (App Router) |
+| UI | React 19 + TailwindCSS 4 |
+| 语言 | TypeScript |
+| 可视化 | D3.js（力导向树、时间轴、画布图表） |
+| 认证 | NextAuth.js + GitHub OAuth |
+| Git 解析 | simple-git |
+| 依赖分析 | TypeScript Compiler API |
+| 数据库 | MySQL 8 + mysql2 |
+| AI | DeepSeek API（OpenAI 兼容） |
 
-风险热点识别：自动标记高频修改文件和高耦合文件，提示潜在技术债风险。
+## 快速启动
 
-多项目管理：支持输入多个 Git 仓库地址，并按项目进行可视化展示。
+```bash
+# 1. 启动 MySQL (Docker)
+docker run -d --name mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=password \
+  -e MYSQL_DATABASE=gitverse \
+  mysql:latest
 
-技术栈
+# 2. 配置环境变量
+cp .env.local.example .env.local
+# 编辑 .env.local:
+#   GITHUB_ID=xxx          # GitHub OAuth App Client ID
+#   GITHUB_SECRET=xxx      # GitHub OAuth App Client Secret
+#   NEXTAUTH_SECRET=$(openssl rand -hex 32)
+#   NEXTAUTH_URL=http://localhost:3000
+#   DATABASE_URL=mysql://root:password@127.0.0.1:3306/gitverse
 
-前端：
-
-Next.js (React 框架)
-
-TailwindCSS 或 Chakra UI（简约大气 UI，学习苹果官网
-
-D3.js / vis.js / Cytoscape.js（节点图可视化）
-
-Framer Motion（节点动画与状态演示）
-
-后端：
-
-Next.js API Routes（内置 Git 数据处理）
-
-Node.js + simple-git（Git 仓库解析）
-
-可选 Python 服务：GitPython + AST 分析文件依赖
-
-数据存储：
-
-Redis（缓存分析结果）
-
-PostgreSQL / MySQL（历史数据与用户记录，可选）
-
-JSON 文件（小型本地 demo）
-
-项目结构示例
-
-/Gitverse
-├─ /pages
-│  ├─ index.tsx        # 首页与项目选择
-│  └─ api/
-│     └─ analyze.ts    # Git 仓库分析接口
-├─ /components
-│  ├─ FileGraph.tsx    # 节点图组件
-│  ├─ Timeline.tsx     # 时间轴组件
-│  └─ FileDetails.tsx  # 文件详情面板
-├─ /lib
-│  └─ git.ts           # Git 数据解析逻辑
-├─ /styles             # TailwindCSS 样式配置
-└─ README.md
-
-安装与启动
-
-# 克隆仓库
-git clone <repo-url>
-cd Gitverse
-
-# 安装依赖
+# 3. 启动
 npm install
-
-# 启动开发环境
 npm run dev
+# → http://localhost:3000
+```
 
-使用方法
+## 环境变量
 
-打开首页，输入 Git 仓库地址。
+| Key | 说明 | 示例 |
+|-----|------|------|
+| `DATABASE_URL` | MySQL 连接串 | `mysql://root:password@127.0.0.1:3306/gitverse` |
+| `GITHUB_ID` | GitHub OAuth App Client ID | `Ov23li...` |
+| `GITHUB_SECRET` | GitHub OAuth App Client Secret | `4af89c...` |
+| `NEXTAUTH_SECRET` | 会话加密密钥 | `openssl rand -hex 32` |
+| `NEXTAUTH_URL` | 应用 URL | `http://localhost:3000` |
 
-系统分析仓库并生成节点图和文件关系。
+## 项目结构
 
-可通过时间轴播放历史演进。
+```
+app/src/
+├── app/
+│   ├── page.tsx                     # 首页：项目管理、搜索、排序
+│   ├── layout.tsx                   # 根布局 + SessionProvider
+│   ├── analyze/[id]/page.tsx        # 分析可视化页（树 + 时间轴 + 抽屉）
+│   ├── settings/page.tsx            # AI 配置（DeepSeek API Key）
+│   └── api/
+│       ├── analyze/route.ts         # POST 分析 Git 仓库
+│       ├── analysis/[id]/route.ts   # GET 获取分析结果
+│       ├── projects/route.ts        # GET 项目列表 / DELETE 删除
+│       ├── ai/analyze/route.ts      # POST AI 文件分析
+│       └── auth/[...nextauth]/      # NextAuth 路由处理
+├── lib/
+│   ├── git.ts                       # Git 克隆、日志解析、文件统计
+│   ├── deps.ts                      # TypeScript import 依赖分析
+│   ├── heatmap.ts                   # 热度 + 风险等级计算
+│   ├── analyzer.ts                  # 分析主流程 + MySQL CRUD
+│   ├── auth.ts                      # getServerSession 封装
+│   └── db/
+│       ├── index.ts                 # MySQL 连接池 + 重试 + 迁移
+│       └── schema.ts                # 表结构 DDL
+├── components/
+│   ├── FileTree.tsx                 # D3 目录树（核心可视化，有机动画）
+│   ├── Timeline.tsx                 # 时间轴播放器（canvas 柱状图）
+│   ├── FileDetails.tsx              # 文件详情面板 + AI 分析按钮
+│   ├── RiskPanel.tsx                # 风险热点面板
+│   ├── AuthButton.tsx               # 登录/头像下拉菜单
+│   └── Providers.tsx                # NextAuth SessionProvider
+└── types/
+    └── analysis.ts                  # GitAnalysis 数据模型类型定义
+```
 
-点击节点查看文件详情和提交热度。
+## API
 
-高风险文件和热点区域会自动标记，便于技术债管理。
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/analyze` | 分析仓库，返回 `{ analysisId }` |
+| `GET` | `/api/analysis/[id]` | 获取分析结果 JSON |
+| `GET` | `/api/projects` | 列出当前用户项目 |
+| `DELETE` | `/api/projects?id=xxx` | 删除项目 |
+| `POST` | `/api/ai/analyze` | AI 分析文件（需 API Key） |
 
-未来扩展
+## 数据库
 
-AI 分析 commit message 自动分类 refactor/feature/bugfix。
+6 张表：
 
-多仓库跨项目依赖分析。
+| 表 | 说明 |
+|----|------|
+| `users` | GitHub 用户信息 |
+| `projects` | 仓库项目（关联 user_id） |
+| `analyses` | 分析快照 |
+| `file_nodes` | 文件节点 |
+| `dependency_edges` | 依赖边 |
+| `commit_snapshots` | 提交记录 |
 
-支持导出可视化报告（PDF/图片）。
+## 使用流程
 
+1. 登录 GitHub 账号
+2. 输入 Git 仓库路径或 URL，点击"开始分析"
+3. 查看目录树：文件按层级展示，节点大小=热度，颜色=风险
+4. 点击时间轴播放按钮，观察仓库从最初几个文件逐步生长
+5. 点击文件节点查看详情：修改次数、增删行数、依赖关系
+6. 在"设置"页面配置 DeepSeek API Key，点击"AI 分析"获取解读
+7. 点击文件夹折叠/展开子树（静态视图）
