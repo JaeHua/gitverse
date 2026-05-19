@@ -134,6 +134,7 @@ export default function FileTree({
     svg.selectAll('*').remove()
 
     const width = svgRef.current.clientWidth
+    const height = svgRef.current.clientHeight
 
     // Marker for edges
     const defs = svg.append('defs')
@@ -159,11 +160,11 @@ export default function FileTree({
       })
 
     svg.call(zoom)
-    svg.call(zoom.transform, d3.zoomIdentity.translate(width / 2 - 40, 30))
+    svg.call(zoom.transform, d3.zoomIdentity.translate(40, height / 2))
 
     const root = d3.hierarchy<TreeNode>(treeData)
     const treeLayout = d3.tree<TreeNode>()
-      .nodeSize([26, 60])
+      .nodeSize([26, 50])
       .separation((a, b) => (a.parent === b.parent ? 1 : 1.2))
 
     treeLayout(root)
@@ -205,7 +206,7 @@ export default function FileTree({
       .data(root.links() as d3.HierarchyPointLink<TreeNode>[])
       .join('path')
       .attr('d', (d) => {
-        return d3.linkVertical<d3.HierarchyPointLink<TreeNode>, d3.HierarchyPointNode<TreeNode>>()
+        return d3.linkHorizontal<d3.HierarchyPointLink<TreeNode>, d3.HierarchyPointNode<TreeNode>>()
           .x((n: d3.HierarchyPointNode<TreeNode>) => n.y ?? 0)
           .y((n: d3.HierarchyPointNode<TreeNode>) => n.x ?? 0)(d as unknown as d3.HierarchyPointLink<TreeNode>)
       })
@@ -274,11 +275,13 @@ export default function FileTree({
       .attr('stroke', '#ef4444')
       .attr('stroke-width', 2)
 
-    // Directory labels
+    // Directory labels (left of node)
     nodeGroup
       .filter((d) => !d.data.fileNode)
       .append('text')
-      .attr('dy', -6)
+      .attr('dx', -8)
+      .attr('dy', 3)
+      .attr('text-anchor', 'end')
       .text((d) => d.data.name)
       .attr('font-size', '11px')
       .attr('font-weight', '600')
@@ -286,11 +289,12 @@ export default function FileTree({
       .attr('font-family', 'system-ui')
       .style('pointer-events', 'none')
 
-    // File labels
+    // File labels (right of node)
     nodeGroup
       .filter((d) => !!d.data.fileNode)
       .append('text')
-      .attr('dy', (d) => -(Math.max(5, d.data.heat / 5 + 5) + 5))
+      .attr('dx', (d) => Math.max(5, d.data.heat / 5 + 5) + 5)
+      .attr('dy', 3)
       .text((d) => d.data.name)
       .attr('font-size', '10px')
       .attr('fill', '#71717a')
