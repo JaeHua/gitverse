@@ -1,5 +1,5 @@
 import mysql from 'mysql2/promise'
-import { CREATE_TABLES } from './schema'
+import { CREATE_TABLES, MIGRATIONS } from './schema'
 
 const pool = mysql.createPool({
   uri: process.env.DATABASE_URL || 'mysql://root:password@localhost:3306/gitverse',
@@ -11,6 +11,13 @@ export async function initDB() {
   const statements = CREATE_TABLES.split(';').filter(s => s.trim())
   for (const stmt of statements) {
     await pool.execute(stmt + ';')
+  }
+  for (const migration of MIGRATIONS) {
+    try {
+      await pool.execute(migration)
+    } catch {
+      // Column may already exist or not supported
+    }
   }
 }
 

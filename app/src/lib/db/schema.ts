@@ -62,3 +62,7 @@ CREATE TABLE IF NOT EXISTS commit_snapshots (
   FOREIGN KEY (analysis_id) REFERENCES analyses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 `
+
+export const MIGRATIONS = [
+  `ALTER TABLE analyses ADD COLUMN file_timeline JSON AFTER total_files`,
+]
