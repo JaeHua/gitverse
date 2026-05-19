@@ -204,6 +204,7 @@ export async function getProjects(userId: string) {
        MAX(a.analyzed_at) as last_analyzed_at,
        MAX(a.total_files) as file_count,
        MAX(a.total_commits) as commit_count,
+       (SELECT a3.id FROM analyses a3 WHERE a3.project_id = p.id ORDER BY a3.analyzed_at DESC LIMIT 1) as latest_analysis_id,
        (SELECT COUNT(*) FROM file_nodes fn
         JOIN analyses a2 ON a2.id = fn.analysis_id
         WHERE a2.project_id = p.id
@@ -226,6 +227,7 @@ export async function getProjects(userId: string) {
     lastAnalyzedAt: r.last_analyzed_at
       ? (r.last_analyzed_at instanceof Date ? r.last_analyzed_at.toISOString() : String(r.last_analyzed_at))
       : r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+    latestAnalysisId: r.latest_analysis_id as string,
     fileCount: (r.file_count as number) || 0,
     commitCount: (r.commit_count as number) || 0,
     highRiskCount: (r.high_risk_count as number) || 0,

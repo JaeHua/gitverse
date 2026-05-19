@@ -59,6 +59,7 @@ export interface ProjectSummary {
   sourceType: 'local' | 'remote'
   sourceInfo: string
   lastAnalyzedAt: string
+  latestAnalysisId: string
   fileCount: number
   commitCount: number
   highRiskCount: number

@@ -281,7 +281,7 @@ function HomeContent() {
                   <div
                     key={p.id}
                     className="flex items-center justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all cursor-pointer group"
-                    onClick={() => (window.location.href = `/analyze/${p.id}`)}
+                    onClick={() => (window.location.href = `/analyze/${p.latestAnalysisId}`)}
                   >
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-sm truncate group-hover:text-blue-500 transition-colors">{p.name}</h3>
