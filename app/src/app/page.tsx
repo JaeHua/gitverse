@@ -107,6 +107,7 @@ function HomeContent() {
   }
 
   async function handleDelete(projectId: string) {
+    if (!confirm('确定删除该项目？所有分析数据将被永久删除。')) return
     try {
       await fetch(`/api/projects?id=${projectId}`, { method: 'DELETE' })
       loadProjects()

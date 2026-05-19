@@ -94,11 +94,28 @@ export default function AnalysisPage() {
   const highCount = hotFiles.length
   const riskCounts = { high: highCount, medium: analysis?.nodes.filter(n => n.risk === 'medium').length || 0, low: analysis?.nodes.filter(n => n.risk === 'low').length || 0 }
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950"><p className="text-zinc-500">加载中...</p></div>
+  if (loading) return (
+    <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
+      <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 h-12 flex items-center gap-3">
+        <div className="w-5 h-5 rounded bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
+        <div className="w-32 h-4 rounded bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
+      </div>
+      <div className="flex flex-1 items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-12 h-12 mx-auto border-2 border-zinc-300 border-t-blue-500 rounded-full animate-spin" />
+          <p className="text-sm text-zinc-400">加载分析数据...</p>
+        </div>
+      </div>
+    </div>
+  )
   if (error || !analysis) return (
-    <div className="h-screen flex flex-col items-center justify-center gap-4 bg-zinc-50 dark:bg-zinc-950">
+    <div className="h-screen flex flex-col items-center justify-center gap-4 bg-zinc-50 dark:bg-zinc-950 px-6">
       <p className="text-red-500">{error || '未找到分析结果'}</p>
-      <Link href="/" className="text-blue-500 text-sm hover:underline">返回首页</Link>
+      <div className="flex gap-3">
+        <Link href="/" className="text-blue-500 text-sm hover:underline">返回首页</Link>
+        <button onClick={() => { setError(''); setLoading(true); window.location.reload() }}
+          className="text-blue-500 text-sm hover:underline">重试</button>
+      </div>
     </div>
   )
 

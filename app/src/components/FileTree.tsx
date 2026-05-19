@@ -83,10 +83,13 @@ export default function FileTree({
   }, [nodes, fileState, currentCommitIndex, collapsed])
 
   useEffect(() => {
-    if (!svgRef.current || nodes.length === 0) return
+    const el = svgRef.current
+    if (!el || nodes.length === 0) return
 
-    const svg = d3.select(svgRef.current)
-    const w = svgRef.current.clientWidth
+    try {
+    // ---- RENDER ----
+    const svg = d3.select(el)
+    const w = el.clientWidth
     const fwd = currentCommitIndex > prevIdx.current
     const prevSet = prevPaths.current
     const prevBrSet = prevBranches.current
@@ -264,6 +267,16 @@ export default function FileTree({
     prevPaths.current = currentPaths
     prevBranches.current = currentBranches
     prevIdx.current = currentCommitIndex
+
+    } catch (err) {
+      console.error('FileTree render error:', err)
+      // Fallback: clean rebuild
+      const svg2 = d3.select(el)
+      svg2.selectAll('*').remove()
+      svg2.append('text').attr('x', el.clientWidth / 2).attr('y', 100)
+        .attr('text-anchor', 'middle').attr('fill', '#9ca3af').attr('font-size', '12px')
+        .text('渲染异常，请刷新页面')
+    }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [treeData, edges, selectedNodeId, nodes.length, onNodeSelect, currentCommitIndex, changedFiles])

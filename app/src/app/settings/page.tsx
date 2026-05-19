@@ -20,6 +20,8 @@ export default function SettingsPage() {
     return 'deepseek-chat'
   })
   const [saved, setSaved] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<'idle' | 'ok' | 'fail'>('idle')
 
   function save() {
     localStorage.setItem('gitverse_ai_key', apiKey.trim())
@@ -27,6 +29,25 @@ export default function SettingsPage() {
     localStorage.setItem('gitverse_ai_model', model.trim() || 'deepseek-chat')
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  async function testConnection() {
+    if (!apiKey.trim()) return
+    setTesting(true)
+    setTestResult('idle')
+    try {
+      const res = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: apiKey.trim(), baseUrl: baseUrl.trim(), model: model.trim(),
+          messages: [{ role: 'user', content: '回复"OK"' }] }),
+      })
+      const data = await res.json()
+      setTestResult(data.content ? 'ok' : 'fail')
+    } catch {
+      setTestResult('fail')
+    }
+    finally { setTesting(false) }
   }
 
   if (status === 'loading') {
@@ -103,12 +124,32 @@ export default function SettingsPage() {
             </select>
           </div>
 
-          <button
-            onClick={save}
-            className="px-6 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors"
-          >
-            {saved ? '已保存 ✓' : '保存配置'}
-          </button>
+          <div className="flex gap-3 items-center">
+            <button
+              onClick={save}
+              className="px-6 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors"
+            >
+              {saved ? '已保存 ✓' : '保存配置'}
+            </button>
+            <button
+              onClick={testConnection}
+              disabled={testing || !apiKey.trim()}
+              className="px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-40 transition-colors"
+            >
+              {testing ? '测试中...' : '测试连接'}
+            </button>
+            {testResult === 'ok' && <span className="text-sm text-green-500">连接成功</span>}
+            {testResult === 'fail' && <span className="text-sm text-red-500">连接失败</span>}
+          </div>
+
+          {apiKey && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className={`w-2 h-2 rounded-full ${testResult === 'ok' ? 'bg-green-500' : testResult === 'fail' ? 'bg-red-500' : 'bg-zinc-300'}`} />
+              <span className="text-zinc-500">
+                {testResult === 'ok' ? '已连接' : testResult === 'fail' ? '连接失败' : '未验证'}
+              </span>
+            </div>
+          )}
         </div>
       </main>
     </div>
