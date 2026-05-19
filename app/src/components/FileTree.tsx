@@ -30,7 +30,6 @@ export default function FileTree({
   const svgRef = useRef<SVGSVGElement>(null)
   const prevPaths = useRef<Set<string>>(new Set())
   const prevIdx = useRef(currentCommitIndex)
-  const initRef = useRef(false)
 
   const fileState = useMemo(() => {
     const s = new Map<string, { exists: boolean; isNew: boolean; isModified: boolean }>()
@@ -71,125 +70,107 @@ export default function FileTree({
   }, [nodes, fileState, currentCommitIndex])
 
   useEffect(() => {
-    const el = svgRef.current
-    if (!el || nodes.length === 0) return
+    if (!svgRef.current || nodes.length === 0) return
 
-    const svg = d3.select(el)
-    const w = el.clientWidth
+    const svg = d3.select(svgRef.current)
+    svg.selectAll('*').remove()
+    const w = svgRef.current.clientWidth
+
+    const defs = svg.append('defs')
+    defs.append('filter').attr('id', 'sh').attr('x', '-30%').attr('y', '-30%').attr('width', '160%').attr('height', '160%')
+      .append('feDropShadow').attr('dx', 0).attr('dy', 1).attr('stdDeviation', 1.5).attr('flood-color', '#000').attr('flood-opacity', 0.04)
+    defs.append('marker').attr('id', 'arr').attr('viewBox', '0 -4 8 8').attr('refX', 7).attr('refY', 0)
+      .attr('markerWidth', 3).attr('markerHeight', 3).attr('orient', 'auto')
+      .append('path').attr('d', 'M0,-3L7,0L0,3').attr('fill', C.dep).attr('opacity', 0.5)
+
+    const g = svg.append('g')
+    const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.08, 6]).on('zoom', e => g.attr('transform', e.transform))
+    svg.call(zoom).call(zoom.transform, d3.zoomIdentity.translate(w / 2, 60).scale(1.1))
+
     const playing = currentCommitIndex >= 0
     const fwd = currentCommitIndex > prevIdx.current
-    const ANIM = playing && fwd ? 2800 : 400
+    const ANIM = playing && fwd ? 2800 : 300
     const prevSet = prevPaths.current
-
-    // One-time setup
-    if (!initRef.current) {
-      const defs = svg.append('defs')
-      defs.append('filter').attr('id', 'sh').attr('x', '-30%').attr('y', '-30%').attr('width', '160%').attr('height', '160%')
-        .append('feDropShadow').attr('dx', 0).attr('dy', 1).attr('stdDeviation', 1.5).attr('flood-color', '#000').attr('flood-opacity', 0.04)
-      defs.append('marker').attr('id', 'arr').attr('viewBox', '0 -4 8 8').attr('refX', 7).attr('refY', 0)
-        .attr('markerWidth', 3).attr('markerHeight', 3).attr('orient', 'auto')
-        .append('path').attr('d', 'M0,-3L7,0L0,3').attr('fill', C.dep).attr('opacity', 0.5)
-      const g = svg.append('g')
-      const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.08, 6]).on('zoom', e => g.attr('transform', e.transform))
-      svg.call(zoom).call(zoom.transform, d3.zoomIdentity.translate(w / 2, 60).scale(1.1))
-      initRef.current = true
-    }
-
-    const g = svg.select<SVGGElement>('g')
 
     const root = d3.hierarchy<TreeNode>(treeData)
     d3.tree<TreeNode>().nodeSize([30, 58]).separation((a, b) => a.parent === b.parent ? 1 : 1.35)(root)
+
     const desc = root.descendants() as d3.HierarchyPointNode<TreeNode>[]
     const currentPaths = new Set(desc.map(d => d.data.path))
     const pos = new Map(desc.map(d => [d.data.path, { x: d.x ?? 0, y: d.y ?? 0, isFile: !!d.data.fileNode }]))
 
     // Branches
-    g.selectAll<SVGPathElement, d3.HierarchyPointLink<TreeNode>>('path.branch')
-      .data(root.links() as d3.HierarchyPointLink<TreeNode>[], d => (d.source as any).data.path + '/' + (d.target as any).data.path)
-      .join(
-        enter => enter.append('path').attr('class', 'branch')
-          .attr('fill', 'none').attr('stroke', C.branch).attr('stroke-width', 1).attr('stroke-linecap', 'round')
-          .attr('d', d => d3.linkVertical<any, any>().x((n: any) => n.x ?? 0).y((n: any) => n.y ?? 0)(d)),
-        update => update,
-        exit => exit.transition().duration(600).attr('stroke-opacity', 0).remove()
-      ).transition().duration(ANIM).ease(d3.easeCubicInOut)
+    g.append('g').selectAll('path')
+      .data(root.links() as d3.HierarchyPointLink<TreeNode>[])
+      .join('path')
+      .attr('fill', 'none').attr('stroke', C.branch).attr('stroke-width', 1).attr('stroke-linecap', 'round')
       .attr('d', d => d3.linkVertical<any, any>().x((n: any) => n.x ?? 0).y((n: any) => n.y ?? 0)(d))
 
     // Dep edges
-    const validEdges = edges.filter(e => pos.get(e.source) && pos.get(e.target))
-    g.selectAll<SVGPathElement, DependencyEdge>('path.dep')
-      .data(validEdges, d => d.source + '/' + d.target)
-      .join(
-        enter => enter.append('path').attr('class', 'dep')
-          .attr('fill', 'none').attr('stroke', C.dep).attr('stroke-width', d => Math.max(d.weight / 35, 0.3))
-          .attr('stroke-opacity', 0).attr('marker-end', 'url(#arr)').style('pointer-events', 'none')
-          .transition().duration(ANIM).attr('stroke-opacity', 0.18),
-        update => update,
-        exit => exit.transition().duration(400).attr('stroke-opacity', 0).remove()
-      ).transition().duration(ANIM)
+    g.append('g').selectAll('path')
+      .data(edges.filter(e => pos.get(e.source) && pos.get(e.target)))
+      .join('path')
       .attr('d', d => { const s = pos.get(d.source)!, t = pos.get(d.target)!; return `M${s.x},${s.y}C${(s.x + t.x) / 2},${s.y} ${(s.x + t.x) / 2},${t.y} ${t.x},${t.y}` })
+      .attr('fill', 'none').attr('stroke', C.dep).attr('stroke-width', d => Math.max(d.weight / 35, 0.3))
+      .attr('stroke-opacity', 0.18).attr('marker-end', 'url(#arr)').style('pointer-events', 'none')
 
     // Nodes
-    g.selectAll<SVGGElement, d3.HierarchyPointNode<TreeNode>>('g.node')
-      .data(desc, d => d.data.path)
-      .join(
-        enter => {
-          const ge = enter.append('g').attr('class', 'node')
-            .attr('cursor', d => d.data.fileNode ? 'pointer' : 'default')
-            .attr('opacity', 0)
-
-          ge.filter(d => !d.data.fileNode && d.depth >= 1)
-            .append('rect').attr('x', -8).attr('y', -5.5).attr('width', 16).attr('height', 11).attr('rx', 2.5)
-            .attr('fill', C.dirFill).attr('stroke', C.branch).attr('stroke-width', 0.5).attr('filter', 'url(#sh)')
-          ge.filter(d => !d.data.fileNode && d.depth >= 1)
-            .append('text').attr('dy', -9).attr('text-anchor', 'middle').text(d => d.data.name)
-            .attr('font-size', d => d.depth === 1 ? '11px' : '10px').attr('font-weight', d => d.depth === 1 ? '600' : '400')
-            .attr('fill', d => d.depth === 1 ? '#6b7280' : C.dirLabel)
-            .attr('font-family', 'system-ui, -apple-system, sans-serif').style('pointer-events', 'none')
-
-          ge.filter(d => !!d.data.fileNode)
-            .append('circle').attr('r', 0.1)
-            .attr('fill', d => heatFill(d.data.heat)).attr('filter', 'url(#sh)').attr('stroke', 'none').attr('stroke-width', 1.5)
-          ge.filter(d => !!d.data.fileNode)
-            .append('text').attr('text-anchor', 'middle')
-            .text(d => truncate(d.data.name, 15)).attr('font-size', '8px').attr('fill', C.label)
-            .attr('font-family', 'ui-monospace, monospace').attr('letter-spacing', '0.01em').attr('opacity', 0)
-
-          ge.transition().duration(200).attr('opacity', 1)
-
-          ge.filter(d => !!d.data.fileNode).select('circle')
-            .transition().duration(ANIM).ease(d3.easeElasticOut.amplitude(0.5).period(0.7))
-            .attr('r', d => r(d.data.heat))
-          ge.filter(d => !!d.data.fileNode).select('text')
-            .attr('dy', (d, i) => (i % 2 === 0 ? -1 : 1) * (r(d.data.heat) + 10))
-            .transition().delay(ANIM * 0.5).duration(600).attr('opacity', 0.5)
-
-          return ge
-        },
-        update => update,
-        exit => exit.transition().duration(800).attr('opacity', 0).remove()
-      )
-      .transition().duration(ANIM).ease(d3.easeCubicInOut)
+    const nodeG = g.append('g').selectAll('g')
+      .data(desc)
+      .join('g')
       .attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`)
+      .attr('cursor', d => d.data.fileNode ? 'pointer' : 'default')
 
-    // Update existing file circles (smooth resize, no regrow)
-    const allNodes = g.selectAll<SVGGElement, d3.HierarchyPointNode<TreeNode>>('g.node')
-    const fileNodes = allNodes.filter(d => !!d.data.fileNode)
-    const existing = fileNodes.filter(d => prevSet.has(d.data.path))
+    // Directory
+    nodeG.filter(d => !d.data.fileNode && d.depth >= 1)
+      .append('rect').attr('x', -8).attr('y', -5.5).attr('width', 16).attr('height', 11).attr('rx', 2.5)
+      .attr('fill', C.dirFill).attr('stroke', C.branch).attr('stroke-width', 0.5).attr('filter', 'url(#sh)')
+    nodeG.filter(d => !d.data.fileNode && d.depth >= 1)
+      .append('text').attr('dy', -9).attr('text-anchor', 'middle').text(d => d.data.name)
+      .attr('font-size', d => d.depth === 1 ? '11px' : '10px').attr('font-weight', d => d.depth === 1 ? '600' : '400')
+      .attr('fill', d => d.depth === 1 ? '#6b7280' : C.dirLabel)
+      .attr('font-family', 'system-ui, -apple-system, sans-serif').style('pointer-events', 'none')
 
-    existing.select('circle').transition().duration(ANIM).ease(d3.easeCubicInOut)
-      .attr('r', d => r(d.data.heat)).attr('fill', d => heatFill(d.data.heat))
-    existing.select('text').attr('dy', (d, i) => (i % 2 === 0 ? -1 : 1) * (r(d.data.heat) + 10))
+    // File nodes
+    const fileNodes = nodeG.filter(d => !!d.data.fileNode)
+    const finalRadius = (d: d3.HierarchyPointNode<TreeNode>) => r(d.data.heat)
 
-    // Effects
+    fileNodes.append('circle')
+      .attr('r', d => prevSet.has(d.data.path) ? finalRadius(d) : (playing && fwd ? 0.1 : finalRadius(d)))
+      .attr('fill', d => heatFill(d.data.heat)).attr('filter', 'url(#sh)')
+      .attr('stroke', 'none').attr('stroke-width', 1.5)
+
+    // Grow animation ONLY for truly new nodes
+    if (playing && fwd) {
+      fileNodes.filter(d => !prevSet.has(d.data.path)).select('circle')
+        .transition().duration(ANIM).ease(d3.easeElasticOut.amplitude(0.5).period(0.7))
+        .attr('r', d => finalRadius(d))
+    }
+
+    // Labels
+    fileNodes.append('text')
+      .attr('dy', (d, i) => (i % 2 === 0 ? -1 : 1) * (finalRadius(d) + 10))
+      .attr('text-anchor', 'middle').text(d => truncate(d.data.name, 15))
+      .attr('font-size', '8px').attr('fill', C.label).attr('font-family', 'ui-monospace, monospace')
+      .attr('letter-spacing', '0.01em')
+      .attr('opacity', d => prevSet.has(d.data.path) || !playing ? 0.5 : 0)
+
+    if (playing && fwd) {
+      fileNodes.filter(d => !prevSet.has(d.data.path)).select('text')
+        .transition().delay(ANIM * 0.5).duration(600).attr('opacity', 0.5)
+    }
+
+    // New node glow
     fileNodes.filter(d => d.data.isNew).select('circle')
       .attr('stroke', C.glow).attr('stroke-opacity', 0.6)
       .transition().delay(ANIM * 0.8).duration(4000).attr('stroke-opacity', 0).attr('stroke', 'none')
 
-    existing.filter(d => d.data.isModified).select('circle')
-      .transition().duration(2000).ease(d3.easeSinInOut).attr('r', d => r(d.data.heat) * 1.12)
-      .transition().duration(2000).ease(d3.easeSinInOut).attr('r', d => r(d.data.heat))
+    // Modified breath
+    fileNodes.filter(d => d.data.isModified && !d.data.isNew).select('circle')
+      .transition().duration(2000).ease(d3.easeSinInOut).attr('r', d => finalRadius(d) * 1.12)
+      .transition().duration(2000).ease(d3.easeSinInOut).attr('r', d => finalRadius(d))
 
+    // Changed highlight
     fileNodes.filter(d => changedFiles.includes(d.data.path)).select('circle')
       .attr('stroke', C.glow).attr('stroke-width', 2.5)
       .transition().duration(3000).attr('stroke-opacity', 0).attr('stroke', 'none')
@@ -197,16 +178,18 @@ export default function FileTree({
     // Interaction
     fileNodes.on('mouseenter', function(_e, d) {
       d3.select(this).select('circle').transition().duration(200)
-        .attr('r', r(d.data.heat) + 4).attr('stroke', C.select).attr('stroke-width', 2.5)
+        .attr('r', finalRadius(d) + 4).attr('stroke', C.select).attr('stroke-width', 2.5)
       d3.select(this).select('text').transition().duration(200).attr('opacity', 0.9)
     })
     fileNodes.on('mouseleave', function(_e, d) {
       d3.select(this).select('circle').transition().duration(300)
-        .attr('r', r(d.data.heat)).attr('stroke', 'none').attr('stroke-width', 1.5)
-      d3.select(this).select('text').transition().duration(200).attr('opacity', d.data.path === selectedNodeId ? 0.9 : 0.5)
+        .attr('r', finalRadius(d)).attr('stroke', 'none').attr('stroke-width', 1.5)
+      d3.select(this).select('text').transition().duration(200)
+        .attr('opacity', d.data.path === selectedNodeId ? 0.9 : 0.5)
     })
     fileNodes.on('click', (_e, d) => { if (d.data.fileNode) onNodeSelect(d.data.path === selectedNodeId ? null : d.data.path) })
 
+    // Selection
     fileNodes.filter(d => d.data.path === selectedNodeId).select('circle').attr('stroke', C.select).attr('stroke-width', 2.5)
     fileNodes.filter(d => d.data.path === selectedNodeId).select('text').attr('opacity', 0.9).attr('font-weight', '500')
 
