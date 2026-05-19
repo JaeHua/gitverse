@@ -31,6 +31,7 @@ function HomeContent() {
   const [sourceType, setSourceType] = useState<'local' | 'remote'>('local')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [loading, setLoading] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
@@ -72,6 +73,9 @@ function HomeContent() {
     setLoading(true)
     setError('')
     setMessage('')
+    setElapsed(0)
+    const start = Date.now()
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000)
 
     try {
       const res = await fetch('/api/analyze', {
@@ -96,7 +100,9 @@ function HomeContent() {
     } catch {
       setError('请求失败，请检查网络或仓库地址')
     } finally {
+      clearInterval(timer)
       setLoading(false)
+      setElapsed(0)
     }
   }
 
@@ -282,7 +288,7 @@ function HomeContent() {
                   disabled={loading}
                   className="px-6 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-40 transition-colors shadow-sm"
                 >
-                  {loading ? '分析中...' : '开始分析'}
+                  {loading ? `分析中... ${elapsed}s` : '开始分析'}
                 </button>
               </div>
               {message && <p className="text-sm text-green-500">{message}</p>}
