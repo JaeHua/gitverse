@@ -32,6 +32,7 @@ export default function FileTree({
   changedFiles, currentCommitIndex, fileTimeline,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
   const prevCommitRef = useRef(currentCommitIndex)
   const animRef = useRef<Map<string, { type: string; time: number }>>(new Map())
 
@@ -142,6 +143,7 @@ export default function FileTree({
       .on('zoom', (event) => g.attr('transform', event.transform))
     svg.call(zoom)
     svg.call(zoom.transform, d3.zoomIdentity.translate(width / 2, 50).scale(1.2))
+    zoomRef.current = zoom
 
     const root = d3.hierarchy<TreeNode>(treeData)
     d3.tree<TreeNode>().nodeSize([28, 50]).separation((a, b) => a.parent === b.parent ? 1 : 1.3)(root)
@@ -254,6 +256,22 @@ export default function FileTree({
       .attr('stroke', '#3b82f6').attr('stroke-width', 2.5)
     nodeG.filter(d => d.data.path === selectedNodeId)
       .select('text').attr('opacity', 1)
+
+    // Focus animation: auto-pan to changed files on timeline step
+    if (changedFiles.length > 0 && changedFiles.length <= 10 && zoomRef.current) {
+      const changedPositions = changedFiles.map(f => pos.get(f)).filter(Boolean) as { x: number; y: number }[]
+      if (changedPositions.length > 0) {
+        const cx = changedPositions.reduce((s, p) => s + p.x, 0) / changedPositions.length
+        const cy = changedPositions.reduce((s, p) => s + p.y, 0) / changedPositions.length
+        const svgEl = svgRef.current!
+        const sw = svgEl.clientWidth
+        const sh = svgEl.clientHeight
+        svg.transition().duration(600).call(
+          zoomRef.current!.transform as any,
+          d3.zoomIdentity.translate(sw / 2 - cx * 1.2, sh / 2 - cy * 1.2).scale(1.2)
+        )
+      }
+    }
 
     // Timeline changed file highlights
     for (const f of changedFiles) {
