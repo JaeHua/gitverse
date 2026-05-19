@@ -74,7 +74,12 @@ export default function FileTree({
     if (!svgRef.current || nodes.length === 0) return
 
     const svg = d3.select(svgRef.current)
-    svg.selectAll('*').remove()
+    // Crossfade: fade out old content before removal
+    const oldG = svg.select('g')
+    if (!oldG.empty()) {
+      oldG.transition().duration(200).attr('opacity', 0).remove()
+    }
+    svg.selectAll('defs').remove()
     const w = svgRef.current.clientWidth
 
     const defs = svg.append('defs')
@@ -92,8 +97,8 @@ export default function FileTree({
     const fwd = currentCommitIndex > prevIdx.current
     const prevSet = prevPaths.current
     const prevBrSet = prevBranches.current
-    const BRANCH_EXTEND = 1800
-    const NODE_GROW = 2400
+    const BRANCH_EXTEND = 1000
+    const NODE_GROW = 1800
 
     const root = d3.hierarchy<TreeNode>(treeData)
     d3.tree<TreeNode>().nodeSize([30, 58]).separation((a, b) => a.parent === b.parent ? 1 : 1.35)(root)
@@ -168,7 +173,7 @@ export default function FileTree({
 
     // Grow animation delayed after branch extension
     fileNodes.filter(d => isNew(d)).select('circle')
-      .transition().delay(BRANCH_EXTEND * 0.6).duration(NODE_GROW).ease(d3.easeElasticOut.amplitude(0.4).period(0.8))
+      .transition().delay(400).duration(NODE_GROW).ease(d3.easeElasticOut.amplitude(0.4).period(0.8))
       .attr('r', d => rad(d))
 
     // Labels
@@ -180,13 +185,13 @@ export default function FileTree({
       .attr('opacity', d => (!shouldAnimate || !isNew(d)) ? 0.5 : 0)
 
     fileNodes.filter(d => isNew(d)).select('text')
-      .transition().delay(BRANCH_EXTEND * 0.6 + NODE_GROW * 0.5).duration(600).attr('opacity', 0.5)
+      .transition().delay(400 + NODE_GROW * 0.5).duration(600).attr('opacity', 0.5)
 
     // ---- EFFECTS ----
     // New node glow (after growth)
     fileNodes.filter(d => d.data.isNew).select('circle')
       .attr('stroke', C.glow).attr('stroke-opacity', 0.6)
-      .transition().delay(BRANCH_EXTEND * 0.6 + NODE_GROW).duration(4000)
+      .transition().delay(400 + NODE_GROW).duration(4000)
       .attr('stroke-opacity', 0).attr('stroke', 'none')
 
     // Modified breath (existing only)
