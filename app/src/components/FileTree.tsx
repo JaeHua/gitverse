@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useMemo } from 'react'
+import { useEffect, useRef, useMemo, useState } from 'react'
 import * as d3 from 'd3'
 import { FileNode, DependencyEdge, CommitSnapshot } from '@/types/analysis'
 
@@ -31,6 +31,7 @@ export default function FileTree({
   const prevPaths = useRef<Set<string>>(new Set())
   const prevBranches = useRef<Set<string>>(new Set())
   const prevIdx = useRef(currentCommitIndex)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   const fileState = useMemo(() => {
     const s = new Map<string, { exists: boolean; isNew: boolean; isModified: boolean }>()
@@ -66,9 +67,19 @@ export default function FileTree({
       }
     }
     if (currentCommitIndex >= 0) { const prune = (n: TreeNode): boolean => { n.children = n.children.filter(c => prune(c)); return n.children.length > 0 || !!n.fileNode }; prune(root) }
+    // Collapse: hide children of collapsed dirs (only in static view)
+    if (currentCommitIndex < 0) {
+      const applyCollapse = (n: TreeNode) => {
+        if (!n.fileNode && n.children.length > 0 && collapsed.has(n.path)) {
+          n.children = []
+        }
+        for (const c of n.children) applyCollapse(c)
+      }
+      applyCollapse(root)
+    }
     const srt = (n: TreeNode) => { n.children.sort((a, b) => (!a.fileNode && b.fileNode ? -1 : a.fileNode && !b.fileNode ? 1 : a.name.localeCompare(b.name))); n.children.forEach(srt) }
     srt(root); return root
-  }, [nodes, fileState, currentCommitIndex])
+  }, [nodes, fileState, currentCommitIndex, collapsed])
 
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return
@@ -221,6 +232,28 @@ export default function FileTree({
       d3.select(this).select('text').transition().duration(200).attr('opacity', d.data.path === selectedNodeId ? 0.9 : 0.5)
     })
     fileNodes.on('click', (_e, d) => { if (d.data.fileNode) onNodeSelect(d.data.path === selectedNodeId ? null : d.data.path) })
+
+    // Directory click: toggle collapse (static view only)
+    nodeG.filter(d => !d.data.fileNode && d.depth >= 1).on('click', (_e, d) => {
+      if (currentCommitIndex < 0) {
+        setCollapsed(prev => {
+          const next = new Set(prev)
+          if (next.has(d.data.path)) next.delete(d.data.path)
+          else next.add(d.data.path)
+          return next
+        })
+      }
+    })
+
+    // Collapse/expand indicator on directory nodes (static view)
+    if (currentCommitIndex < 0) {
+      nodeG.filter(d => !d.data.fileNode && d.depth >= 1)
+        .append('text')
+        .attr('dy', -1).attr('dx', -13).attr('text-anchor', 'middle')
+        .text(d => collapsed.has(d.data.path) ? '+' : '−')
+        .attr('font-size', '9px').attr('fill', '#9ca3af').attr('font-weight', '600')
+        .style('pointer-events', 'none')
+    }
 
     // Selection
     fileNodes.filter(d => d.data.path === selectedNodeId).select('circle').attr('stroke', C.select).attr('stroke-width', 2.5)
