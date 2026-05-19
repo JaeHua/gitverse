@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useMemo } from 'react'
 import { useSession, signIn } from 'next-auth/react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ProjectSummary } from '@/types/analysis'
 import AuthButton from '@/components/AuthButton'
@@ -22,6 +22,7 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
 function HomeContent() {
   const { data: session, status } = useSession()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const authError = useMemo(() => {
     const e = searchParams.get('error')
     return e ? (OAUTH_ERROR_MESSAGES[e] || '登录失败，请重试') : null
@@ -107,7 +108,7 @@ function HomeContent() {
         setMessage('分析完成!')
         setRepoSource('')
         await loadProjects()
-        window.location.href = `/analyze/${data.analysisId}`
+        router.push(`/analyze/${data.analysisId}`)
       }
     } catch {
       setError('请求失败，请检查网络或仓库地址')
@@ -336,7 +337,7 @@ function HomeContent() {
                   <div
                     key={p.id}
                     className="flex items-center justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all cursor-pointer group"
-                    onClick={() => (window.location.href = `/analyze/${p.latestAnalysisId}`)}
+                    onClick={() => router.push(`/analyze/${p.latestAnalysisId}`)}
                   >
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-sm truncate group-hover:text-blue-500 transition-colors">{p.name}</h3>

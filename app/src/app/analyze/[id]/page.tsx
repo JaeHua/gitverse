@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { GitAnalysis } from '@/types/analysis'
 import FileTree from '@/components/FileTree'
@@ -13,6 +13,7 @@ type Tab = 'overview' | 'risk' | 'readme' | 'detail'
 
 export default function AnalysisPage() {
   const params = useParams()
+  const router = useRouter()
   const id = params.id as string
 
   const [analysis, setAnalysis] = useState<GitAnalysis | null>(null)
@@ -113,7 +114,7 @@ export default function AnalysisPage() {
       <p className="text-red-500">{error || '未找到分析结果'}</p>
       <div className="flex gap-3">
         <Link href="/" className="text-blue-500 text-sm hover:underline">返回首页</Link>
-        <button onClick={() => { setError(''); setLoading(true); window.location.reload() }}
+        <button onClick={() => router.refresh()}
           className="text-blue-500 text-sm hover:underline">重试</button>
       </div>
     </div>
