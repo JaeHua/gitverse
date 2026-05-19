@@ -40,7 +40,8 @@ function HomeContent() {
 
   useEffect(() => {
     if (session) loadProjects()
-  }, [session])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, status])
 
   async function loadProjects() {
     try {
