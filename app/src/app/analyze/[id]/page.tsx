@@ -138,9 +138,12 @@ export default function AnalysisPage() {
           <FileTree
             nodes={analysis.nodes}
             edges={analysis.edges}
+            commits={analysis.commits}
             selectedNodeId={selectedNodeId}
             onNodeSelect={handleNodeSelect}
             changedFiles={changedFiles}
+            currentCommitIndex={currentCommitIndex}
+            fileTimeline={analysis.fileTimeline}
           />
         </div>
 
