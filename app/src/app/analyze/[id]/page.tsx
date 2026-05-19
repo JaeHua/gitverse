@@ -4,10 +4,9 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { GitAnalysis } from '@/types/analysis'
-import FileGraph from '@/components/FileGraph'
+import FileTree from '@/components/FileTree'
 import Timeline from '@/components/Timeline'
 import FileDetails from '@/components/FileDetails'
-import RiskPanel from '@/components/RiskPanel'
 import AuthButton from '@/components/AuthButton'
 
 export default function AnalysisPage() {
@@ -17,6 +16,8 @@ export default function AnalysisPage() {
   const [analysis, setAnalysis] = useState<GitAnalysis | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [currentCommitIndex, setCurrentCommitIndex] = useState(-1)
+  const [showDrawer, setShowDrawer] = useState(false)
+  const [drawerTab, setDrawerTab] = useState<'overview' | 'risk' | 'detail'>('overview')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -39,38 +40,26 @@ export default function AnalysisPage() {
     load()
   }, [id])
 
-  // Compute core modules (most imported by others = high in-degree)
+  // When node selected, show detail in drawer
+  const handleNodeSelect = (nodeId: string | null) => {
+    setSelectedNodeId(nodeId)
+    if (nodeId) {
+      setDrawerTab('detail')
+      setShowDrawer(true)
+    }
+  }
+
   const coreModules = useMemo(() => {
     if (!analysis) return []
     const inDegree = new Map<string, number>()
-    for (const edge of analysis.edges) {
-      inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1)
-    }
-    return [...inDegree.entries()]
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([path, count]) => {
-        const node = analysis.nodes.find((n) => n.id === path)
-        return { path, name: node?.name || path.split('/').pop() || path, importCount: count }
-      })
+    for (const edge of analysis.edges) inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1)
+    return [...inDegree.entries()].sort(([, a], [, b]) => b - a).slice(0, 10)
+      .map(([path, count]) => ({ path, name: analysis.nodes.find((n) => n.id === path)?.name || path.split('/').pop() || path, importCount: count }))
   }, [analysis])
 
-  // High-risk files
   const hotFiles = useMemo(() => {
     if (!analysis) return []
-    return analysis.nodes
-      .filter((n) => n.risk === 'high')
-      .slice(0, 10)
-  }, [analysis])
-
-  // File type breakdown
-  const fileTypes = useMemo(() => {
-    if (!analysis) return []
-    const types = new Map<string, number>()
-    for (const node of analysis.nodes) {
-      types.set(node.extension, (types.get(node.extension) || 0) + 1)
-    }
-    return [...types.entries()].sort(([, a], [, b]) => b - a)
+    return analysis.nodes.filter((n) => n.risk === 'high').slice(0, 15)
   }, [analysis])
 
   const selectedNode = analysis?.nodes.find((n) => n.id === selectedNodeId) || null
@@ -81,29 +70,31 @@ export default function AnalysisPage() {
       : []
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <p className="text-zinc-500">加载中...</p>
-      </div>
-    )
+    return <div className="h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950"><p className="text-zinc-500">加载中...</p></div>
   }
 
   if (error || !analysis) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-zinc-50 dark:bg-zinc-950">
+      <div className="h-screen flex flex-col items-center justify-center gap-4 bg-zinc-50 dark:bg-zinc-950">
         <p className="text-red-500">{error || '未找到分析结果'}</p>
-        <Link href="/" className="text-blue-500 text-sm hover:underline">
-          返回首页
-        </Link>
+        <Link href="/" className="text-blue-500 text-sm hover:underline">返回首页</Link>
       </div>
     )
   }
 
+  const highCount = hotFiles.length
+  const riskCounts = {
+    high: highCount,
+    medium: analysis.nodes.filter((n) => n.risk === 'medium').length,
+    low: analysis.nodes.filter((n) => n.risk === 'low').length,
+  }
+
   return (
     <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md px-6 h-14 flex items-center justify-between shrink-0 sticky top-0 z-50">
+      {/* Header */}
+      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md px-6 h-12 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href="/" className="flex items-center gap-1.5 shrink-0">
+          <Link href="/" className="shrink-0">
             <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
               <rect width="28" height="28" rx="7" fill="#3b82f6"/>
               <circle cx="11" cy="10" r="3.5" fill="white" fillOpacity="0.9"/>
@@ -115,113 +106,155 @@ export default function AnalysisPage() {
           <span className="text-zinc-300 dark:text-zinc-600">/</span>
           <span className="text-sm font-medium truncate">{analysis.repoName}</span>
         </div>
-        <div className="flex items-center gap-4 text-xs text-zinc-400 shrink-0">
-          <span>{analysis.totalCommits} 提交</span>
-          <span>{analysis.totalFiles} 文件</span>
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Quick stats */}
+          <span className="text-xs text-zinc-400">{analysis.totalCommits} 提交</span>
+          <span className="text-xs text-zinc-400">{analysis.totalFiles} 文件</span>
+          <span className="text-xs text-zinc-400">{analysis.edges.length} 依赖</span>
+          {highCount > 0 && <span className="text-xs text-red-400">{highCount} 高风险</span>}
+
+          {/* Drawer toggle */}
+          <button
+            onClick={() => setShowDrawer(!showDrawer)}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+              showDrawer ? 'bg-blue-100 dark:bg-blue-900 text-blue-600' : 'text-zinc-400 hover:text-zinc-600'
+            }`}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="1" y="1" width="12" height="12" rx="2" />
+              <line x1="1" y1="5" x2="13" y2="5" />
+              <line x1="9" y1="5" x2="9" y2="13" />
+            </svg>
+            详情
+          </button>
           <AuthButton />
         </div>
       </header>
 
-      {/* Overview Stats */}
-      <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 py-4 shrink-0">
-        <div className="grid grid-cols-4 gap-4 max-w-5xl mx-auto">
-          {/* Core modules summary */}
-          <div className="col-span-4 lg:col-span-1">
-            <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">核心模块</h3>
-            <div className="space-y-1">
-              {coreModules.slice(0, 5).map((m, i) => (
-                <div key={i} className="flex items-center justify-between text-xs">
-                  <button
-                    onClick={() => setSelectedNodeId(m.path)}
-                    className="text-blue-500 hover:text-blue-600 truncate max-w-[140px] text-left"
-                  >
-                    {m.name}
-                  </button>
-                  <span className="text-zinc-400 shrink-0 ml-2">{m.importCount}引用</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Risk summary */}
-          <div className="col-span-4 lg:col-span-1">
-            <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">风险热点</h3>
-            <div className="space-y-1">
-              {hotFiles.slice(0, 5).map((f, i) => (
-                <div key={i} className="flex items-center justify-between text-xs">
-                  <button
-                    onClick={() => setSelectedNodeId(f.id)}
-                    className="text-red-500 hover:text-red-600 truncate max-w-[140px] text-left"
-                  >
-                    {f.name}
-                  </button>
-                  <span className="text-zinc-400 shrink-0 ml-2">{f.commitCount}次</span>
-                </div>
-              ))}
-              {hotFiles.length === 0 && (
-                <p className="text-xs text-zinc-400">无高风险文件</p>
-              )}
-            </div>
-          </div>
-
-          {/* Activity overview */}
-          <div className="col-span-4 lg:col-span-1">
-            <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">活动概览</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="text-center p-2 rounded bg-zinc-50 dark:bg-zinc-800">
-                <p className="text-sm font-semibold">{analysis.totalCommits}</p>
-                <p className="text-[10px] text-zinc-400">提交</p>
-              </div>
-              <div className="text-center p-2 rounded bg-zinc-50 dark:bg-zinc-800">
-                <p className="text-sm font-semibold">{analysis.totalFiles}</p>
-                <p className="text-[10px] text-zinc-400">文件</p>
-              </div>
-              <div className="text-center p-2 rounded bg-zinc-50 dark:bg-zinc-800">
-                <p className="text-sm font-semibold">{analysis.edges.length}</p>
-                <p className="text-[10px] text-zinc-400">依赖</p>
-              </div>
-              <div className="text-center p-2 rounded bg-zinc-50 dark:bg-zinc-800">
-                <p className="text-sm font-semibold">{hotFiles.length}</p>
-                <p className="text-[10px] text-zinc-400">热点</p>
-              </div>
-            </div>
-          </div>
-
-          {/* File types */}
-          <div className="col-span-4 lg:col-span-1">
-            <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">文件类型</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {fileTypes.slice(0, 8).map(([ext, count]) => (
-                <span key={ext} className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-                  {ext || 'other'} {count}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main content */}
+      {/* Main + Drawer */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 relative">
-          <FileGraph
+        {/* File Tree */}
+        <div className="flex-1 relative bg-zinc-50 dark:bg-zinc-950">
+          <FileTree
             nodes={analysis.nodes}
             edges={analysis.edges}
             selectedNodeId={selectedNodeId}
-            onNodeSelect={setSelectedNodeId}
+            onNodeSelect={handleNodeSelect}
             changedFiles={changedFiles}
           />
         </div>
 
-        <aside className="w-80 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-y-auto shrink-0">
-          {selectedNode ? (
-            <FileDetails node={selectedNode} edges={analysis.edges} />
-          ) : (
-            <RiskPanel nodes={analysis.nodes} onNodeSelect={setSelectedNodeId} />
-          )}
-        </aside>
+        {/* Drawer */}
+        {showDrawer && (
+          <aside className="w-72 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-y-auto shrink-0">
+            {/* Tabs */}
+            <div className="flex border-b border-zinc-100 dark:border-zinc-800">
+              {(['overview', 'risk', 'detail'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setDrawerTab(tab)}
+                  className={`flex-1 py-2 text-xs font-medium transition-colors ${
+                    drawerTab === tab
+                      ? 'text-blue-500 border-b-2 border-blue-500'
+                      : 'text-zinc-400 hover:text-zinc-600'
+                  }`}
+                >
+                  {tab === 'overview' ? '概览' : tab === 'risk' ? '热点' : '详情'}
+                </button>
+              ))}
+            </div>
+
+            {/* Overview Tab */}
+            {drawerTab === 'overview' && (
+              <div className="p-4 space-y-4">
+                <div>
+                  <h4 className="text-xs font-medium text-zinc-500 mb-2">核心模块</h4>
+                  <div className="space-y-1">
+                    {coreModules.map((m, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setSelectedNodeId(m.path)}
+                        className="w-full flex items-center justify-between text-left text-xs py-0.5"
+                      >
+                        <span className="text-blue-500 hover:text-blue-600 truncate max-w-[140px]">{m.name}</span>
+                        <span className="text-zinc-400 shrink-0">{m.importCount}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-medium text-zinc-500 mb-2">风险分布</h4>
+                  <div className="flex gap-2 text-xs text-center">
+                    <div className="flex-1 bg-red-50 dark:bg-red-950 rounded p-1.5">
+                      <p className="text-red-500 font-semibold">{riskCounts.high}</p>
+                      <p className="text-zinc-400 text-[10px]">高</p>
+                    </div>
+                    <div className="flex-1 bg-yellow-50 dark:bg-yellow-950 rounded p-1.5">
+                      <p className="text-yellow-500 font-semibold">{riskCounts.medium}</p>
+                      <p className="text-zinc-400 text-[10px]">中</p>
+                    </div>
+                    <div className="flex-1 bg-green-50 dark:bg-green-950 rounded p-1.5">
+                      <p className="text-green-500 font-semibold">{riskCounts.low}</p>
+                      <p className="text-zinc-400 text-[10px]">低</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-medium text-zinc-500 mb-2">文件类型</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {(() => {
+                      const types = new Map<string, number>()
+                      for (const n of analysis.nodes) types.set(n.extension, (types.get(n.extension) || 0) + 1)
+                      return [...types.entries()].sort(([, a], [, b]) => b - a).slice(0, 10)
+                    })().map(([ext, count]) => (
+                      <span key={ext} className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500">
+                        {ext || 'other'} {count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Risk Tab */}
+            {drawerTab === 'risk' && (
+              <div className="p-4">
+                <div className="space-y-1">
+                  {hotFiles.map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => setSelectedNodeId(f.id)}
+                      className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-red-500 font-medium truncate max-w-[160px]">{f.name}</span>
+                        <span className="text-zinc-400">{f.commitCount}次</span>
+                      </div>
+                      <p className="text-[10px] text-zinc-400 mt-0.5 truncate">{f.path}</p>
+                    </button>
+                  ))}
+                  {hotFiles.length === 0 && <p className="text-xs text-zinc-400">无高风险文件</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Detail Tab */}
+            {drawerTab === 'detail' && (
+              <div className="p-4">
+                {selectedNode ? (
+                  <FileDetails node={selectedNode} edges={analysis.edges} />
+                ) : (
+                  <p className="text-xs text-zinc-400">点击图中节点查看详情</p>
+                )}
+              </div>
+            )}
+          </aside>
+        )}
       </div>
 
+      {/* Timeline */}
       <div className="border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0">
         <Timeline
           commits={analysis.commits}
