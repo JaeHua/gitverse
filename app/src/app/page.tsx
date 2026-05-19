@@ -33,7 +33,7 @@ function HomeContent() {
 
   useEffect(() => {
     if (status === 'loading') {
-      const t = setTimeout(() => setLoadingTimedOut(true), 3000)
+      const t = setTimeout(() => setLoadingTimedOut(true), 2000)
       return () => clearTimeout(t)
     }
     setLoadingTimedOut(false)
