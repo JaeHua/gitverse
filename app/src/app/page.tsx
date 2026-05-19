@@ -25,6 +25,8 @@ function HomeContent() {
     const e = searchParams.get('error')
     return e ? (OAUTH_ERROR_MESSAGES[e] || '登录失败，请重试') : null
   }, [searchParams])
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState<'date' | 'name' | 'files' | 'risk'>('date')
   const [repoSource, setRepoSource] = useState('')
   const [sourceType, setSourceType] = useState<'local' | 'remote'>('local')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
@@ -46,6 +48,21 @@ function HomeContent() {
       // ignore
     }
   }
+
+  const filteredProjects = useMemo(() => {
+    let list = [...projects]
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter((p) => p.name.toLowerCase().includes(q))
+    }
+    switch (sortBy) {
+      case 'name': list.sort((a, b) => a.name.localeCompare(b.name)); break
+      case 'files': list.sort((a, b) => b.fileCount - a.fileCount); break
+      case 'risk': list.sort((a, b) => b.highRiskCount - a.highRiskCount); break
+      default: break // date is default order from API
+    }
+    return list
+  }, [projects, search, sortBy])
 
   async function handleAnalyze() {
     if (!repoSource.trim()) {
@@ -273,14 +290,37 @@ function HomeContent() {
           </section>
 
           <section>
-            <h2 className="text-base font-medium mb-4">已分析项目</h2>
-            {projects.length === 0 ? (
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-medium">已分析项目</h2>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="搜索项目..."
+                  className="w-36 px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  className="px-2 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 focus:outline-none"
+                >
+                  <option value="date">时间</option>
+                  <option value="name">名称</option>
+                  <option value="files">文件数</option>
+                  <option value="risk">风险</option>
+                </select>
+              </div>
+            </div>
+            {filteredProjects.length === 0 ? (
               <div className="text-center py-16 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
-                <p className="text-sm text-zinc-400">暂无项目，输入仓库地址开始分析</p>
+                <p className="text-sm text-zinc-400">
+                  {search ? '没有匹配的项目' : '暂无项目，输入仓库地址开始分析'}
+                </p>
               </div>
             ) : (
               <div className="grid gap-3">
-                {projects.map((p) => (
+                {filteredProjects.map((p) => (
                   <div
                     key={p.id}
                     className="flex items-center justify-between p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all cursor-pointer group"
