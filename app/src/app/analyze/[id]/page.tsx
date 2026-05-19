@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { GitAnalysis } from '@/types/analysis'
@@ -39,6 +39,40 @@ export default function AnalysisPage() {
     load()
   }, [id])
 
+  // Compute core modules (most imported by others = high in-degree)
+  const coreModules = useMemo(() => {
+    if (!analysis) return []
+    const inDegree = new Map<string, number>()
+    for (const edge of analysis.edges) {
+      inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1)
+    }
+    return [...inDegree.entries()]
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([path, count]) => {
+        const node = analysis.nodes.find((n) => n.id === path)
+        return { path, name: node?.name || path.split('/').pop() || path, importCount: count }
+      })
+  }, [analysis])
+
+  // High-risk files
+  const hotFiles = useMemo(() => {
+    if (!analysis) return []
+    return analysis.nodes
+      .filter((n) => n.risk === 'high')
+      .slice(0, 10)
+  }, [analysis])
+
+  // File type breakdown
+  const fileTypes = useMemo(() => {
+    if (!analysis) return []
+    const types = new Map<string, number>()
+    for (const node of analysis.nodes) {
+      types.set(node.extension, (types.get(node.extension) || 0) + 1)
+    }
+    return [...types.entries()].sort(([, a], [, b]) => b - a)
+  }, [analysis])
+
   const selectedNode = analysis?.nodes.find((n) => n.id === selectedNodeId) || null
 
   const changedFiles =
@@ -69,10 +103,7 @@ export default function AnalysisPage() {
     <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md px-6 h-14 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-3 min-w-0">
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 shrink-0"
-          >
+          <Link href="/" className="flex items-center gap-1.5 shrink-0">
             <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
               <rect width="28" height="28" rx="7" fill="#3b82f6"/>
               <circle cx="11" cy="10" r="3.5" fill="white" fillOpacity="0.9"/>
@@ -85,12 +116,92 @@ export default function AnalysisPage() {
           <span className="text-sm font-medium truncate">{analysis.repoName}</span>
         </div>
         <div className="flex items-center gap-4 text-xs text-zinc-400 shrink-0">
-          <span>{analysis.totalFiles} 文件</span>
           <span>{analysis.totalCommits} 提交</span>
+          <span>{analysis.totalFiles} 文件</span>
           <AuthButton />
         </div>
       </header>
 
+      {/* Overview Stats */}
+      <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 py-4 shrink-0">
+        <div className="grid grid-cols-4 gap-4 max-w-5xl mx-auto">
+          {/* Core modules summary */}
+          <div className="col-span-4 lg:col-span-1">
+            <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">核心模块</h3>
+            <div className="space-y-1">
+              {coreModules.slice(0, 5).map((m, i) => (
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <button
+                    onClick={() => setSelectedNodeId(m.path)}
+                    className="text-blue-500 hover:text-blue-600 truncate max-w-[140px] text-left"
+                  >
+                    {m.name}
+                  </button>
+                  <span className="text-zinc-400 shrink-0 ml-2">{m.importCount}引用</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Risk summary */}
+          <div className="col-span-4 lg:col-span-1">
+            <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">风险热点</h3>
+            <div className="space-y-1">
+              {hotFiles.slice(0, 5).map((f, i) => (
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <button
+                    onClick={() => setSelectedNodeId(f.id)}
+                    className="text-red-500 hover:text-red-600 truncate max-w-[140px] text-left"
+                  >
+                    {f.name}
+                  </button>
+                  <span className="text-zinc-400 shrink-0 ml-2">{f.commitCount}次</span>
+                </div>
+              ))}
+              {hotFiles.length === 0 && (
+                <p className="text-xs text-zinc-400">无高风险文件</p>
+              )}
+            </div>
+          </div>
+
+          {/* Activity overview */}
+          <div className="col-span-4 lg:col-span-1">
+            <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">活动概览</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="text-center p-2 rounded bg-zinc-50 dark:bg-zinc-800">
+                <p className="text-sm font-semibold">{analysis.totalCommits}</p>
+                <p className="text-[10px] text-zinc-400">提交</p>
+              </div>
+              <div className="text-center p-2 rounded bg-zinc-50 dark:bg-zinc-800">
+                <p className="text-sm font-semibold">{analysis.totalFiles}</p>
+                <p className="text-[10px] text-zinc-400">文件</p>
+              </div>
+              <div className="text-center p-2 rounded bg-zinc-50 dark:bg-zinc-800">
+                <p className="text-sm font-semibold">{analysis.edges.length}</p>
+                <p className="text-[10px] text-zinc-400">依赖</p>
+              </div>
+              <div className="text-center p-2 rounded bg-zinc-50 dark:bg-zinc-800">
+                <p className="text-sm font-semibold">{hotFiles.length}</p>
+                <p className="text-[10px] text-zinc-400">热点</p>
+              </div>
+            </div>
+          </div>
+
+          {/* File types */}
+          <div className="col-span-4 lg:col-span-1">
+            <h3 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">文件类型</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {fileTypes.slice(0, 8).map(([ext, count]) => (
+                <span key={ext} className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                  {ext || 'other'} {count}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 relative">
           <FileGraph
