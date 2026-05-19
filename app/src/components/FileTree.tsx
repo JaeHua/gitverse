@@ -79,7 +79,8 @@ export default function FileTree({
     const fwd = currentCommitIndex > prevIdx.current
     const prevSet = prevPaths.current
     const prevBrSet = prevBranches.current
-    const ANIM = playing && fwd ? 2500 : 300
+    const ANIM = playing && fwd ? 6000 : 300
+    const BRANCH_END = 2000
 
     // Fade out old content
     const oldG = svg.select<SVGGElement>('g.tree-content')
@@ -112,7 +113,7 @@ export default function FileTree({
     const content = g.append('g').attr('class', 'tree-content').attr('opacity', 0)
 
     const root = d3.hierarchy<TreeNode>(treeData)
-    d3.tree<TreeNode>().nodeSize([30, 58]).separation((a, b) => a.parent === b.parent ? 1 : 1.35)(root)
+    d3.tree<TreeNode>().nodeSize([34, 65]).separation((a, b) => a.parent === b.parent ? 1 : 1.5)(root)
 
     const desc = root.descendants() as d3.HierarchyPointNode<TreeNode>[]
     const currentPaths = new Set(desc.map(d => d.data.path))
@@ -135,7 +136,7 @@ export default function FileTree({
             const len = el.getTotalLength()
             if (len > 0) {
               sel.attr('stroke-dasharray', len).attr('stroke-dashoffset', len)
-                .transition().duration(ANIM * 0.4).ease(d3.easeCubicInOut)
+                .transition().duration(BRANCH_END).ease(d3.easeCubicInOut)
                 .attr('stroke-dashoffset', 0)
                 .transition().duration(200).attr('stroke-dasharray', 'none')
             }
@@ -175,10 +176,10 @@ export default function FileTree({
       .attr('fill', d => heatFill(d.data.heat)).attr('filter', 'url(#sh)')
       .attr('stroke', 'none').attr('stroke-width', 1.5)
 
-    // Grow only new nodes - start immediately, no delay
+    // Grow only new nodes - start after branch extends
     if (fwd) {
       fileNodes.filter(d => !wasVisible(d)).select('circle')
-        .transition().duration(ANIM).ease(d3.easeElasticOut.amplitude(0.4).period(0.8))
+        .transition().delay(1400).duration(2200).ease(d3.easeElasticOut.amplitude(0.4).period(0.8))
         .attr('r', d => rad(d))
     }
 
@@ -192,13 +193,13 @@ export default function FileTree({
 
     if (fwd) {
       fileNodes.filter(d => !wasVisible(d)).select('text')
-        .transition().delay(ANIM * 0.3).duration(600).attr('opacity', 0.5)
+        .transition().delay(2000).duration(600).attr('opacity', 0.5)
     }
 
     // ---- EFFECTS ----
     fileNodes.filter(d => d.data.isNew).select('circle')
       .attr('stroke', C.glow).attr('stroke-opacity', 0.6)
-      .transition().delay(ANIM * 0.5).duration(3000).attr('stroke-opacity', 0).attr('stroke', 'none')
+      .transition().delay(2800).duration(3000).attr('stroke-opacity', 0).attr('stroke', 'none')
 
     fileNodes.filter(d => d.data.isModified && !d.data.isNew).select('circle')
       .transition().duration(2000).ease(d3.easeSinInOut).attr('r', d => rad(d) * 1.12)
