@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ProjectSummary } from '@/types/analysis'
 import AuthButton from '@/components/AuthButton'
+import ConfirmModal from '@/components/ConfirmModal'
 
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   OAuthSignin: '登录请求失败',
@@ -28,7 +29,7 @@ function HomeContent() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'date' | 'name' | 'files' | 'risk'>('date')
   const [loadingTimedOut, setLoadingTimedOut] = useState(false)
-  const [repoSource, setRepoSource] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   useEffect(() => {
     if (status === 'loading') {
@@ -37,6 +38,7 @@ function HomeContent() {
     }
     setLoadingTimedOut(false)
   }, [status])
+  const [repoSource, setRepoSource] = useState('')
   const [sourceType, setSourceType] = useState<'local' | 'remote'>('local')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [loading, setLoading] = useState(false)
@@ -116,13 +118,16 @@ function HomeContent() {
   }
 
   async function handleDelete(projectId: string) {
-    if (!confirm('确定删除该项目？所有分析数据将被永久删除。')) return
+    setDeleteTarget(projectId)
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
     try {
-      await fetch(`/api/projects?id=${projectId}`, { method: 'DELETE' })
+      await fetch(`/api/projects?id=${deleteTarget}`, { method: 'DELETE' })
       loadProjects()
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
+    finally { setDeleteTarget(null) }
   }
 
   function riskColor(riskCount: number) {
@@ -369,6 +374,14 @@ function HomeContent() {
           </section>
         </main>
       )}
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        title="删除项目"
+        message="确定删除该项目？所有分析数据将被永久删除，无法恢复。"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }
