@@ -67,18 +67,24 @@ export default function AnalysisPage() {
 
   return (
     <div className="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md px-6 h-14 flex items-center justify-between shrink-0 sticky top-0 z-50">
+        <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/"
-            className="text-sm text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            className="flex items-center gap-1.5 shrink-0"
           >
-            Projects
+            <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
+              <rect width="28" height="28" rx="7" fill="#3b82f6"/>
+              <circle cx="11" cy="10" r="3.5" fill="white" fillOpacity="0.9"/>
+              <circle cx="18" cy="13" r="2.5" fill="white" fillOpacity="0.9"/>
+              <circle cx="10" cy="18" r="2" fill="white" fillOpacity="0.9"/>
+              <line x1="13.5" y1="9" x2="16" y2="12" stroke="white" strokeWidth="1.2" strokeOpacity="0.6"/>
+            </svg>
           </Link>
           <span className="text-zinc-300 dark:text-zinc-600">/</span>
-          <span className="text-sm font-medium">{analysis.repoName}</span>
+          <span className="text-sm font-medium truncate">{analysis.repoName}</span>
         </div>
-        <div className="flex items-center gap-4 text-xs text-zinc-400">
+        <div className="flex items-center gap-4 text-xs text-zinc-400 shrink-0">
           <span>{analysis.totalFiles} 文件</span>
           <span>{analysis.totalCommits} 提交</span>
           <AuthButton />
