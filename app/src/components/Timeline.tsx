@@ -35,7 +35,7 @@ export default function Timeline({ commits, currentIndex, onChange, fileTimeline
         return
       }
       onChange(idx)
-    }, 500)
+    }, 3500)
   }, [isPlaying, currentIndex, commits.length, onChange])
 
   // Count file changes per commit for bar chart
