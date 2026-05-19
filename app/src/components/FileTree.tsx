@@ -21,7 +21,7 @@ interface TreeNode {
   isNew: boolean; isModified: boolean
 }
 
-const C = { branch: '#e5e5e5', dep: '#d8b4fe', dirFill: '#e5e7eb', dirLabel: '#a1a1aa', label: '#9ca3af', select: '#a78bfa', glow: '#fbbf24' }
+const C = { branch: '#e5e5e5', dep: '#c4b5fd', dirFill: '#f3f4f6', dirLabel: '#9ca3af', label: '#6b7280', select: '#8b5cf6', glow: '#f59e0b' }
 
 export default function FileTree({
   nodes, edges, commits, selectedNodeId, onNodeSelect,
@@ -163,7 +163,7 @@ export default function FileTree({
     nodeG.filter(d => !d.data.fileNode && d.depth >= 1)
       .append('text').attr('dy', -9).attr('text-anchor', 'middle').text(d => d.data.name)
       .attr('font-size', d => d.depth === 1 ? '11px' : '10px').attr('font-weight', d => d.depth === 1 ? '600' : '400')
-      .attr('fill', d => d.depth === 1 ? '#6b7280' : C.dirLabel)
+      .attr('fill', d => d.depth === 1 ? '#4b5563' : C.dirLabel)
       .attr('font-family', 'system-ui, -apple-system, sans-serif').style('pointer-events', 'none')
 
     // File nodes
@@ -252,6 +252,6 @@ export default function FileTree({
 }
 
 function r(heat: number) { return 4 + Math.min(Math.max(heat, 0), 80) * 0.12 }
-function heatFill(h: number) { return h > 60 ? '#fca5a5' : h > 30 ? '#fde68a' : '#a7f3d0' }
+function heatFill(h: number) { return h > 60 ? '#ef4444' : h > 30 ? '#f59e0b' : '#22c55e' }
 function countFiles(n: TreeNode): number { let c = n.fileNode ? 1 : 0; for (const x of n.children) c += countFiles(x); return c }
 function truncate(s: string, max: number): string { return s.length > max ? s.slice(0, max - 2) + '..' : s }
