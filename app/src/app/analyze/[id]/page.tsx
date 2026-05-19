@@ -8,6 +8,7 @@ import FileGraph from '@/components/FileGraph'
 import Timeline from '@/components/Timeline'
 import FileDetails from '@/components/FileDetails'
 import RiskPanel from '@/components/RiskPanel'
+import AuthButton from '@/components/AuthButton'
 
 export default function AnalysisPage() {
   const params = useParams()
@@ -80,6 +81,7 @@ export default function AnalysisPage() {
         <div className="flex items-center gap-4 text-xs text-zinc-400">
           <span>{analysis.totalFiles} 文件</span>
           <span>{analysis.totalCommits} 提交</span>
+          <AuthButton />
         </div>
       </header>
 

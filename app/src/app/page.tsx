@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { ProjectSummary } from '@/types/analysis'
+import AuthButton from '@/components/AuthButton'
 
 export default function HomePage() {
+  const { data: session, status } = useSession()
   const [repoSource, setRepoSource] = useState('')
   const [sourceType, setSourceType] = useState<'local' | 'remote'>('local')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
@@ -12,8 +15,8 @@ export default function HomePage() {
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    loadProjects()
-  }, [])
+    if (session) loadProjects()
+  }, [session])
 
   async function loadProjects() {
     try {
@@ -83,10 +86,27 @@ export default function HomePage() {
           <h1 className="text-xl font-semibold tracking-tight">
             <span className="text-blue-500">Git</span>verse
           </h1>
-          <span className="text-xs text-zinc-400">可视化代码演进分析</span>
+          <AuthButton />
         </div>
       </header>
 
+      {status === 'loading' ? (
+        <main className="max-w-5xl mx-auto px-6 py-12">
+          <div className="flex flex-col items-center justify-center gap-4 py-20">
+            <div className="w-6 h-6 border-2 border-zinc-300 border-t-blue-500 rounded-full animate-spin" />
+            <p className="text-sm text-zinc-400">加载中...</p>
+          </div>
+        </main>
+      ) : !session ? (
+        <main className="max-w-5xl mx-auto px-6 py-12">
+          <div className="flex flex-col items-center justify-center gap-6 py-20 text-center">
+            <h2 className="text-xl font-semibold">可视化代码演进分析</h2>
+            <p className="text-sm text-zinc-500 max-w-md">
+              登录后即可分析 Git 仓库，查看文件依赖关系图、时间轴演进和风险热点识别。
+            </p>
+          </div>
+        </main>
+      ) : (
       <main className="max-w-5xl mx-auto px-6 py-12">
         <section className="mb-12">
           <h2 className="text-lg font-medium mb-4">分析新仓库</h2>
@@ -178,6 +198,7 @@ export default function HomePage() {
           )}
         </section>
       </main>
+      )}
     </div>
   )
 }

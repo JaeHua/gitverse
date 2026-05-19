@@ -10,7 +10,10 @@ interface DbRow {
   [key: string]: unknown
 }
 
-export async function analyzeRepo(request: AnalyzeRequest): Promise<string> {
+export async function analyzeRepo(
+  request: AnalyzeRequest,
+  userId: string
+): Promise<string> {
   await initDB()
 
   const maxCommits = request.maxCommits || 500
@@ -34,10 +37,11 @@ export async function analyzeRepo(request: AnalyzeRequest): Promise<string> {
     const projectId = uuid()
 
     await query(
-      `INSERT INTO projects (id, name, source_type, source_path)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO projects (id, user_id, name, source_type, source_path)
+       VALUES (?, ?, ?, ?, ?)`,
       [
         projectId,
+        userId,
         repoName,
         request.repoSource.type,
         request.repoSource.type === 'local'
@@ -176,7 +180,7 @@ export async function getAnalysis(analysisId: string): Promise<GitAnalysis | nul
   }
 }
 
-export async function getProjects() {
+export async function getProjects(userId: string) {
   const rows = await query<DbRow>(
     `SELECT p.*,
        MAX(a.analyzed_at) as last_analyzed_at,
@@ -188,10 +192,12 @@ export async function getProjects() {
         AND fn.risk = 'high'
         AND a2.id = (SELECT a3.id FROM analyses a3 WHERE a3.project_id = p.id ORDER BY a3.analyzed_at DESC LIMIT 1)
        ) as high_risk_count
-     FROM projects p
-     LEFT JOIN analyses a ON a.project_id = p.id
-     GROUP BY p.id
-     ORDER BY last_analyzed_at DESC`
+      FROM projects p
+      LEFT JOIN analyses a ON a.project_id = p.id
+      WHERE p.user_id = ?
+      GROUP BY p.id
+      ORDER BY last_analyzed_at DESC`,
+    [userId]
   )
 
   return rows.map((r: DbRow) => ({
@@ -208,6 +214,6 @@ export async function getProjects() {
   }))
 }
 
-export async function deleteProject(projectId: string) {
-  await query('DELETE FROM projects WHERE id = ?', [projectId])
+export async function deleteProject(projectId: string, userId: string) {
+  await query('DELETE FROM projects WHERE id = ? AND user_id = ?', [projectId, userId])
 }
