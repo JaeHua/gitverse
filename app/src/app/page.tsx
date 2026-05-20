@@ -150,7 +150,7 @@ function HomeContent() {
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5 font-semibold text-zinc-900 dark:text-zinc-100 hover:opacity-80 transition-opacity">
-            <Image src="/gitverse.webp" alt="Gitverse" width={36} height={36} className="rounded-lg" />
+            <Image src="/gitverse.svg" alt="Gitverse" width={38} height={38} className="rounded-lg" priority />
             <span className="text-lg tracking-tight">Gitverse</span>
           </Link>
           <AuthButton />
@@ -167,7 +167,7 @@ function HomeContent() {
           )}
 
           <div className="text-center">
-            <Image src="/gitverse.webp" alt="Gitverse" width={64} height={64} className="rounded-2xl mb-6" />
+            <Image src="/gitverse.svg" alt="Gitverse" width={64} height={64} className="rounded-2xl mb-6" />
 
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 mb-3">
               Gitverse
