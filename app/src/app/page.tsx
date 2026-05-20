@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense, useMemo } from 'react'
 import { useSession, signIn } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { ProjectSummary } from '@/types/analysis'
 import AuthButton from '@/components/AuthButton'
 import ConfirmModal from '@/components/ConfirmModal'
@@ -149,15 +150,7 @@ function HomeContent() {
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5 font-semibold text-zinc-900 dark:text-zinc-100 hover:opacity-80 transition-opacity">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <rect width="28" height="28" rx="7" fill="#3b82f6"/>
-              <circle cx="11" cy="10" r="3.5" fill="white" fillOpacity="0.9"/>
-              <circle cx="18" cy="13" r="2.5" fill="white" fillOpacity="0.9"/>
-              <circle cx="10" cy="18" r="2" fill="white" fillOpacity="0.9"/>
-              <line x1="13.5" y1="9" x2="16" y2="12" stroke="white" strokeWidth="1.2" strokeOpacity="0.6"/>
-              <line x1="12.5" y1="12.5" x2="15.5" y2="13" stroke="white" strokeWidth="1.2" strokeOpacity="0.6"/>
-              <line x1="11" y1="16.5" x2="13" y2="14" stroke="white" strokeWidth="1.2" strokeOpacity="0.6"/>
-            </svg>
+            <Image src="/gitverse.jpeg" alt="Gitverse" width={28} height={28} className="rounded-md" />
             <span className="text-lg tracking-tight">Gitverse</span>
           </Link>
           <AuthButton />
@@ -174,16 +167,7 @@ function HomeContent() {
           )}
 
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-500 mb-6">
-              <svg width="32" height="32" viewBox="0 0 28 28" fill="none">
-                <circle cx="11" cy="10" r="3.5" fill="white" fillOpacity="0.9"/>
-                <circle cx="18" cy="13" r="2.5" fill="white" fillOpacity="0.9"/>
-                <circle cx="10" cy="18" r="2" fill="white" fillOpacity="0.9"/>
-                <line x1="13.5" y1="9" x2="16" y2="12" stroke="white" strokeWidth="1.2" strokeOpacity="0.6"/>
-                <line x1="12.5" y1="12.5" x2="15.5" y2="13" stroke="white" strokeWidth="1.2" strokeOpacity="0.6"/>
-                <line x1="11" y1="16.5" x2="13" y2="14" stroke="white" strokeWidth="1.2" strokeOpacity="0.6"/>
-              </svg>
-            </div>
+            <Image src="/gitverse.jpeg" alt="Gitverse" width={64} height={64} className="rounded-2xl mb-6" />
 
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 mb-3">
               Gitverse

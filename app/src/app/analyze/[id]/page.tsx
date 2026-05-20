@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { GitAnalysis } from '@/types/analysis'
 import FileTree from '@/components/FileTree'
 import Timeline from '@/components/Timeline'
@@ -141,13 +142,7 @@ export default function AnalysisPage() {
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md px-6 h-12 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-3 min-w-0">
           <Link href="/" className="shrink-0">
-            <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
-              <rect width="28" height="28" rx="7" fill="#3b82f6"/>
-              <circle cx="11" cy="10" r="3.5" fill="white" fillOpacity="0.9"/>
-              <circle cx="18" cy="13" r="2.5" fill="white" fillOpacity="0.9"/>
-              <circle cx="10" cy="18" r="2" fill="white" fillOpacity="0.9"/>
-              <line x1="13.5" y1="9" x2="16" y2="12" stroke="white" strokeWidth="1.2" strokeOpacity="0.6"/>
-            </svg>
+            <Image src="/gitverse.jpeg" alt="Gitverse" width={20} height={20} className="rounded-sm" />
           </Link>
           <span className="text-zinc-300 dark:text-zinc-600">/</span>
           <span className="text-sm font-medium truncate">{analysis.repoName}</span>
