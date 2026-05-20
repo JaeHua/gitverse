@@ -66,4 +66,5 @@ CREATE TABLE IF NOT EXISTS commit_snapshots (
 export const MIGRATIONS = [
   `ALTER TABLE analyses ADD COLUMN file_timeline JSON AFTER total_files`,
   `ALTER TABLE analyses ADD COLUMN project_readme TEXT AFTER file_timeline`,
+  `ALTER TABLE analyses ADD COLUMN file_authors JSON AFTER project_readme`,
 ]

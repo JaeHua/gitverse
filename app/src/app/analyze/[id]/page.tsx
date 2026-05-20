@@ -9,8 +9,9 @@ import Timeline from '@/components/Timeline'
 import FileDetails from '@/components/FileDetails'
 import AuthButton from '@/components/AuthButton'
 import { useToast } from '@/components/Toast'
+import CouplingMatrix from '@/components/CouplingMatrix'
 
-type Tab = 'overview' | 'risk' | 'readme' | 'detail'
+type Tab = 'overview' | 'risk' | 'readme' | 'coupling' | 'diff' | 'detail'
 
 export default function AnalysisPage() {
   const params = useParams()
@@ -27,6 +28,20 @@ export default function AnalysisPage() {
   const [error, setError] = useState('')
   const [readmeLoading, setReadmeLoading] = useState(false)
   const [readmeContent, setReadmeContent] = useState('')
+  const [search, setSearch] = useState('')
+
+  // / shortcut to focus search box
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault()
+        const el = document.querySelector<HTMLInputElement>('input[placeholder*="搜索文件"]')
+        el?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -156,6 +171,15 @@ export default function AnalysisPage() {
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 relative bg-zinc-50 dark:bg-zinc-950">
+          {/* Search */}
+          <div className="absolute top-3 right-3 z-10">
+            <input
+              type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="搜索文件... (/)"
+              className="w-40 px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white/90 dark:bg-zinc-900/90 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm"
+              onKeyDown={e => { if (e.key === 'Escape') setSearch('') }}
+            />
+          </div>
           <FileTree nodes={analysis.nodes} edges={analysis.edges} commits={analysis.commits}
             selectedNodeId={selectedNodeId} onNodeSelect={handleNodeSelect}
             changedFiles={changedFiles} currentCommitIndex={currentCommitIndex} fileTimeline={analysis.fileTimeline} />
@@ -164,10 +188,10 @@ export default function AnalysisPage() {
         {showDrawer && (
           <aside className="w-72 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-y-auto shrink-0">
             <div className="flex border-b border-zinc-100 dark:border-zinc-800">
-              {(['overview', 'risk', 'readme', 'detail'] as Tab[]).map(tab => (
+              {(['overview', 'risk', 'readme', 'coupling', 'diff', 'detail'] as Tab[]).map(tab => (
                 <button key={tab} onClick={() => setDrawerTab(tab)}
-                  className={`flex-1 py-2 text-xs font-medium transition-colors ${drawerTab === tab ? 'text-blue-500 border-b-2 border-blue-500' : 'text-zinc-400 hover:text-zinc-600'}`}>
-                  {tab === 'overview' ? '概览' : tab === 'risk' ? '热点' : tab === 'readme' ? '说明' : '详情'}
+                  className={`flex-1 py-2 text-[10px] font-medium transition-colors ${drawerTab === tab ? 'text-blue-500 border-b-2 border-blue-500' : 'text-zinc-400 hover:text-zinc-600'}`}>
+                  {tab === 'overview' ? '概览' : tab === 'risk' ? '热点' : tab === 'readme' ? '说明' : tab === 'coupling' ? '耦合' : tab === 'diff' ? 'Diff' : '详情'}
                 </button>
               ))}
             </div>
@@ -237,6 +261,80 @@ export default function AnalysisPage() {
                     <Link href="/settings" className="text-blue-500 hover:underline">前往设置 →</Link>
                   </div>
                 )}
+              </div>
+            )}
+
+            {drawerTab === 'diff' && (
+              <div className="p-4">
+                <h4 className="text-xs font-medium text-zinc-500 mb-3">提交变更</h4>
+                {currentCommitIndex >= 0 ? (
+                  (() => {
+                    const commit = analysis.commits[currentCommitIndex]
+                    const files = commit?.filesChanged || []
+                    const addedFiles = files.filter(f => {
+                      const events = analysis.fileTimeline?.[f]
+                      return events?.some(e => {
+                        const diff = Math.abs(new Date(e.date).getTime() - new Date(commit.date).getTime())
+                        return diff < 60000 && e.type === 'added'
+                      })
+                    }).length || 0
+                    const deletedFiles = files.filter(f => {
+                      const events = analysis.fileTimeline?.[f]
+                      return events?.some(e => {
+                        const diff = Math.abs(new Date(e.date).getTime() - new Date(commit.date).getTime())
+                        return diff < 60000 && e.type === 'deleted'
+                      })
+                    }).length || 0
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex gap-3 text-xs">
+                          <span className="text-green-500">+{addedFiles} 新增</span>
+                          <span className="text-red-500">-{deletedFiles} 删除</span>
+                          <span className="text-zinc-400">~{files.length - addedFiles - deletedFiles} 修改</span>
+                        </div>
+                        <div className="text-xs text-zinc-600 dark:text-zinc-300 break-words">
+                          {commit.message}
+                        </div>
+                        <div className="space-y-1 max-h-60 overflow-y-auto">
+                          {files.map((f, i) => {
+                            const events = analysis.fileTimeline?.[f]
+                            const isAdded = events?.some(e => {
+                              const diff = Math.abs(new Date(e.date).getTime() - new Date(commit.date).getTime())
+                              return diff < 60000 && e.type === 'added'
+                            })
+                            const isDeleted = events?.some(e => {
+                              const diff = Math.abs(new Date(e.date).getTime() - new Date(commit.date).getTime())
+                              return diff < 60000 && e.type === 'deleted'
+                            })
+                            return (
+                              <div key={i} className="flex items-center gap-2 text-[11px]">
+                                <span className={isAdded ? 'text-green-500' : isDeleted ? 'text-red-500' : 'text-yellow-500'}>
+                                  {isAdded ? 'A' : isDeleted ? 'D' : 'M'}
+                                </span>
+                                <button onClick={() => setSelectedNodeId(f)}
+                                  className="text-zinc-600 dark:text-zinc-400 truncate hover:text-blue-500 text-left">
+                                  {f.split('/').pop()}
+                                </button>
+                                <span className="text-zinc-400 text-[10px] ml-auto shrink-0">
+                                  {analysis.fileAuthors?.[f] || ''}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })()
+                ) : (
+                  <p className="text-xs text-zinc-400">播放时间轴后查看提交变更</p>
+                )}
+              </div>
+            )}
+
+            {drawerTab === 'coupling' && (
+              <div className="p-4">
+                <h4 className="text-xs font-medium text-zinc-500 mb-3">模块耦合</h4>
+                <CouplingMatrix nodes={analysis.nodes} edges={analysis.edges} />
               </div>
             )}
 

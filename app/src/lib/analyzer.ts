@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import path from 'path'
 import { GitAnalysis, AnalyzeRequest, FileNode, DependencyEdge } from '@/types/analysis'
-import { cloneOrOpen, getCommits, getFileStats, getSourceFiles } from './git'
+import { cloneOrOpen, getCommits, getFileStats, getSourceFiles, getAuthors } from './git'
 import { analyzeImports } from './deps'
 import { calculateFileNodes } from './heatmap'
 import { initDB, query } from './db'
@@ -26,6 +26,7 @@ export async function analyzeRepo(
   try {
     const commits = await getCommits(git, maxCommits)
     const { fileStats, fileTimeline, commitFiles } = await getFileStats(git, maxCommits)
+    const fileAuthors = await getAuthors(git)
 
     // Populate filesChanged from commitFiles data
     for (const commit of commits) {
@@ -62,9 +63,9 @@ export async function analyzeRepo(
     )
 
     await query(
-      `INSERT INTO analyses (id, project_id, total_commits, total_files, file_timeline)
-       VALUES (?, ?, ?, ?, ?)`,
-      [analysisId, projectId, commits.length, nodes.length, JSON.stringify(fileTimelineObj)]
+      `INSERT INTO analyses (id, project_id, total_commits, total_files, file_timeline, file_authors)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [analysisId, projectId, commits.length, nodes.length, JSON.stringify(fileTimelineObj), JSON.stringify(Object.fromEntries(fileAuthors))]
     )
 
     if (nodes.length > 0) {
@@ -173,6 +174,7 @@ export async function getAnalysis(analysisId: string): Promise<GitAnalysis | nul
     totalFiles: a.total_files as number,
     analyzedAt: a.analyzed_at instanceof Date ? a.analyzed_at.toISOString() : String(a.analyzed_at),
     projectReadme: (a.project_readme as string) || '',
+    fileAuthors: typeof a.file_authors === 'string' ? JSON.parse(a.file_authors) : (a.file_authors || {}),
     fileTimeline: fileTimeline as GitAnalysis['fileTimeline'],
     nodes: nodes.map((n: DbRow) => ({
       id: n.path as string,

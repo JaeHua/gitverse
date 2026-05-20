@@ -164,23 +164,42 @@ export function getSourceFiles(repoDir: string): string[] {
 
   function walk(dir: string) {
     let entries: fs.Dirent[]
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
     for (const entry of entries) {
       if (EXCLUDE_DIRS.includes(entry.name)) continue
       if (entry.name.startsWith('.')) continue
       const fullPath = path.join(dir, entry.name)
-      if (entry.isDirectory()) {
-        walk(fullPath)
-      } else if (SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
-        results.push(fullPath)
-      }
+      if (entry.isDirectory()) { walk(fullPath) }
+      else if (SOURCE_EXTENSIONS.some(ext => entry.name.endsWith(ext))) { results.push(fullPath) }
     }
   }
-
   walk(repoDir)
   return results
+}
+
+export async function getAuthors(git: SimpleGit): Promise<Map<string, string>> {
+  const authorMap = new Map<string, string>()
+  try {
+    const blame = await git.raw(['ls-files', '-z'])
+    const files = blame.split('\0').filter(Boolean)
+    for (const file of files.slice(0, 200)) {
+      try {
+        const log = await git.log({ file, maxCount: 1 })
+        if (log.latest) authorMap.set(file, log.latest.author_name)
+      } catch { /* skip */ }
+    }
+  } catch { /* skip */ }
+  return authorMap
+}
+
+export async function getCommitDiff(git: SimpleGit, hash: string): Promise<string> {
+  try {
+    return await git.show(['--stat', '--format=%B', hash])
+  } catch { return '' }
+}
+
+export async function getCommitNumstat(git: SimpleGit, hash: string): Promise<string> {
+  try {
+    return await git.show(['--numstat', '--format=', hash])
+  } catch { return '' }
 }
