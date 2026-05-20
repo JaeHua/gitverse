@@ -6,11 +6,11 @@ export default function CouplingMatrix({ nodes, edges }: { nodes: FileNode[]; ed
     const dirs = new Set<string>()
     for (const n of nodes) {
       const parts = n.path.split('/')
-      if (parts.length >= 2) dirs.add(parts[0])
-      else if (parts.length === 1) dirs.add(parts[0])
+      // Use 2-level depth for granularity
+      const key = parts.length >= 2 ? parts.slice(0, 2).join('/') : parts[0]
+      dirs.add(key)
     }
-    const sorted = [...dirs].sort()
-    return sorted.slice(0, 8)
+    return [...dirs].sort().slice(0, 10)
   }, [nodes])
 
   const matrix = useMemo(() => {

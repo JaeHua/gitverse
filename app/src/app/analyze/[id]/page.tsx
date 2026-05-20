@@ -172,6 +172,7 @@ export default function AnalysisPage() {
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 relative bg-zinc-50 dark:bg-zinc-950">
           {/* Search */}
+          {currentCommitIndex < 0 && (
           <div className="absolute top-3 right-3 z-10">
             <input
               type="text" value={search} onChange={e => setSearch(e.target.value)}
@@ -180,9 +181,11 @@ export default function AnalysisPage() {
               onKeyDown={e => { if (e.key === 'Escape') setSearch('') }}
             />
           </div>
+          )}
           <FileTree nodes={analysis.nodes} edges={analysis.edges} commits={analysis.commits}
             selectedNodeId={selectedNodeId} onNodeSelect={handleNodeSelect}
-            changedFiles={changedFiles} currentCommitIndex={currentCommitIndex} fileTimeline={analysis.fileTimeline} />
+            changedFiles={changedFiles}             currentCommitIndex={currentCommitIndex} fileTimeline={analysis.fileTimeline}
+            searchQuery={currentCommitIndex < 0 ? search : ''} />
         </div>
 
         {showDrawer && (

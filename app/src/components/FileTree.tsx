@@ -14,6 +14,7 @@ interface Props {
   changedFiles: string[]
   currentCommitIndex: number
   fileTimeline: Record<string, Array<{ date: string; type: string }>>
+  searchQuery: string
 }
 
 interface TreeNode {
@@ -26,7 +27,7 @@ const C = { branch: '#e5e5e5', dep: '#c4b5fd', dirFill: '#f3f4f6', dirLabel: '#9
 
 export default function FileTree({
   nodes, edges, commits, selectedNodeId, onNodeSelect,
-  changedFiles, currentCommitIndex, fileTimeline,
+  changedFiles, currentCommitIndex, fileTimeline, searchQuery,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const prevPaths = useRef<Set<string>>(new Set())
@@ -255,6 +256,24 @@ export default function FileTree({
     // Selection
     fileNodes.filter(d => d.data.path === selectedNodeId).select('circle').attr('stroke', C.select).attr('stroke-width', 2.5)
     fileNodes.filter(d => d.data.path === selectedNodeId).select('text').attr('opacity', 0.9).attr('font-weight', '500')
+
+    // Search highlight + camera focus
+    if (searchQuery && currentCommitIndex < 0) {
+      const q = searchQuery.toLowerCase()
+      const matches = desc.filter(d => d.data.fileNode && d.data.name.toLowerCase().includes(q))
+      fileNodes.filter(d => !matches.includes(d)).select('circle').attr('opacity', 0.15)
+      fileNodes.filter(d => !matches.includes(d)).select('text').attr('opacity', 0.1)
+      if (matches.length > 0) {
+        const cx = matches.reduce((s, d) => s + (d.x ?? 0), 0) / matches.length
+        const cy = matches.reduce((s, d) => s + (d.y ?? 0), 0) / matches.length
+        const svgEl = svgRef.current
+        if (svgEl) {
+          const sw = svgEl.clientWidth
+          g.transition().duration(600).attr('transform',
+            `translate(${sw / 2 - cx * 1.5}, ${200 - cy * 1.5}) scale(1.5)`)
+        }
+      }
+    }
 
     prevPaths.current = currentPaths
     prevBranches.current = currentBranches
