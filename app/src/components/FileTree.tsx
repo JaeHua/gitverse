@@ -126,7 +126,7 @@ export default function FileTree({
     const content = g.append('g').attr('class', 'tree-content').attr('opacity', 0)
 
     const root = d3.hierarchy<TreeNode>(treeData)
-    d3.tree<TreeNode>().nodeSize([34, 65]).separation((a, b) => a.parent === b.parent ? 1 : 1.5)(root)
+    d3.tree<TreeNode>().nodeSize([38, 68]).separation((a, b) => a.parent === b.parent ? 1 : 1.6)(root)
 
     const desc = root.descendants() as d3.HierarchyPointNode<TreeNode>[]
     const currentPaths = new Set(desc.map(d => d.data.path))
@@ -198,9 +198,9 @@ export default function FileTree({
 
     // Labels
     fileNodes.append('text')
-      .attr('dy', (d, i) => (i % 2 === 0 ? -1 : 1) * (rad(d) + 10))
-      .attr('text-anchor', 'middle').text(d => truncate(d.data.name, 15))
-      .attr('font-size', '8px').attr('fill', C.label).attr('font-family', 'ui-monospace, monospace')
+      .attr('dy', (d, i) => (i % 2 === 0 ? -1 : 1) * (rad(d) + 12))
+      .attr('text-anchor', 'middle').text(d => truncate(d.data.name, 12))
+      .attr('font-size', '8.5px').attr('fill', C.label).attr('font-family', 'ui-monospace, monospace')
       .attr('letter-spacing', '0.01em')
       .attr('opacity', d => wasVisible(d) || !fwd ? 0.5 : 0)
 
