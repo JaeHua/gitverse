@@ -95,14 +95,9 @@ export default function FileTree({
     const prevBrSet = prevBranches.current
     const BRANCH_END = 2000
 
-    // Fade out old content
+    // Remove old content immediately (no crossfade to avoid overlapping nodes)
     const oldG = svg.select<SVGGElement>('g.tree-content')
-    if (!oldG.empty()) {
-      oldG.transition().duration(250).attr('opacity', 0).remove()
-    } else {
-      // First time: remove everything except defs
-      svg.selectAll('*:not(defs)').remove()
-    }
+    if (!oldG.empty()) { oldG.remove() }
 
     // Setup defs once
     if (svg.select('defs').empty()) {
@@ -122,8 +117,8 @@ export default function FileTree({
       svg.call(zoom).call(zoom.transform, d3.zoomIdentity.translate(w / 2, 60).scale(1.1))
     }
 
-    // New content group (will fade in)
-    const content = g.append('g').attr('class', 'tree-content').attr('opacity', 0)
+    // New content group
+    const content = g.append('g').attr('class', 'tree-content')
 
     const root = d3.hierarchy<TreeNode>(treeData)
     d3.tree<TreeNode>().nodeSize([38, 68]).separation((a, b) => a.parent === b.parent ? 1 : 1.6)(root)
@@ -260,9 +255,6 @@ export default function FileTree({
     // Selection
     fileNodes.filter(d => d.data.path === selectedNodeId).select('circle').attr('stroke', C.select).attr('stroke-width', 2.5)
     fileNodes.filter(d => d.data.path === selectedNodeId).select('text').attr('opacity', 0.9).attr('font-weight', '500')
-
-    // Crossfade: fade in new content
-    content.transition().duration(300).attr('opacity', 1)
 
     prevPaths.current = currentPaths
     prevBranches.current = currentBranches
