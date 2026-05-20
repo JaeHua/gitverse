@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { ProjectSummary } from '@/types/analysis'
 import AuthButton from '@/components/AuthButton'
 import ConfirmModal from '@/components/ConfirmModal'
+import { useToast } from '@/components/Toast'
 
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   OAuthSignin: '登录请求失败',
@@ -23,6 +24,7 @@ function HomeContent() {
   const { data: session, status } = useSession()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { toast } = useToast()
   const authError = useMemo(() => {
     const e = searchParams.get('error')
     return e ? (OAUTH_ERROR_MESSAGES[e] || '登录失败，请重试') : null
@@ -103,9 +105,9 @@ function HomeContent() {
       })
       const data = await res.json()
       if (data.error) {
-        setError(data.error)
+        toast(data.error, 'error')
       } else if (data.analysisId) {
-        setMessage('分析完成!')
+        toast('分析完成', 'success')
         setRepoSource('')
         await loadProjects()
         router.push(`/analyze/${data.analysisId}`)
@@ -127,6 +129,7 @@ function HomeContent() {
     if (!deleteTarget) return
     try {
       await fetch(`/api/projects?id=${deleteTarget}`, { method: 'DELETE' })
+      toast('已删除', 'success')
       loadProjects()
     } catch { /* ignore */ }
     finally { setDeleteTarget(null) }

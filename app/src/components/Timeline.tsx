@@ -38,6 +38,18 @@ export default function Timeline({ commits, currentIndex, onChange, fileTimeline
     }, 5000)
   }, [isPlaying, currentIndex, commits.length, onChange])
 
+  // Keyboard: Space to play/pause, ← → to scrub
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePlay() }
+      if (e.key === 'ArrowLeft') onChange(Math.max(0, currentIndex - 1))
+      if (e.key === 'ArrowRight') onChange(Math.min(commits.length - 1, currentIndex + 1))
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [currentIndex, commits.length, onChange, togglePlay])
+
   // Count file changes per commit for bar chart
   const changeCounts = commits.map((c) => {
     const added = c.filesChanged.filter((f) => {

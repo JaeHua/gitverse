@@ -8,12 +8,14 @@ import FileTree from '@/components/FileTree'
 import Timeline from '@/components/Timeline'
 import FileDetails from '@/components/FileDetails'
 import AuthButton from '@/components/AuthButton'
+import { useToast } from '@/components/Toast'
 
 type Tab = 'overview' | 'risk' | 'readme' | 'detail'
 
 export default function AnalysisPage() {
   const params = useParams()
   const router = useRouter()
+  const { toast } = useToast()
   const id = params.id as string
 
   const [analysis, setAnalysis] = useState<GitAnalysis | null>(null)

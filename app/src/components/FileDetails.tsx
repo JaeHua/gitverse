@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { FileNode, DependencyEdge } from '@/types/analysis'
+import { useToast } from '@/components/Toast'
 
 interface Props {
   node: FileNode
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function FileDetails({ node, edges }: Props) {
+  const { toast } = useToast()
   const [aiLoading, setAiLoading] = useState(false)
   const [aiResult, setAiResult] = useState('')
   const [aiError, setAiError] = useState('')
@@ -92,7 +94,11 @@ export default function FileDetails({ node, edges }: Props) {
 
       <div className="space-y-3 text-sm">
         <div>
-          <span className="text-xs text-zinc-400">路径</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-zinc-400">路径</span>
+            <button onClick={() => { navigator.clipboard.writeText(node.path); toast('已复制', 'success') }}
+              className="text-[10px] text-zinc-400 hover:text-zinc-600 transition-colors">复制</button>
+          </div>
           <p className="text-xs mt-0.5 text-zinc-600 dark:text-zinc-300 break-all">{node.path}</p>
         </div>
 
