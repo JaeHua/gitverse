@@ -28,6 +28,7 @@ export default function AnalysisPage() {
   const [error, setError] = useState('')
   const [readmeLoading, setReadmeLoading] = useState(false)
   const [readmeContent, setReadmeContent] = useState('')
+  const [readmeError, setReadmeError] = useState('')
   const [search, setSearch] = useState('')
 
   // / shortcut to focus search box
@@ -63,6 +64,7 @@ export default function AnalysisPage() {
 
     async function autoGenerate(apiKey: string, analysisData: GitAnalysis) {
       setReadmeLoading(true)
+      setReadmeError('')
       try {
         const res = await fetch('/api/ai/analyze', {
           method: 'POST',
@@ -75,14 +77,18 @@ export default function AnalysisPage() {
               { role: 'user', content: buildReadmePrompt(analysisData) },
             ] }),
         })
-        const data = await res.json()
-        if (data.content) {
-          setReadmeContent(data.content)
+        const resData = await res.json()
+        if (resData.content) {
+          setReadmeContent(resData.content)
           fetch(`/api/analysis/${id}/readme`, { method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: data.content }) }).catch(() => {})
+            body: JSON.stringify({ content: resData.content }) }).catch(() => {})
+        } else {
+          setReadmeError(resData.error || '生成失败')
         }
-      } catch { /* ignore */ }
+      } catch {
+        setReadmeError('AI 请求失败，请检查网络或 API Key')
+      }
       finally { setReadmeLoading(false) }
     }
 
@@ -238,6 +244,37 @@ export default function AnalysisPage() {
                   ))}
                   {hotFiles.length === 0 && <p className="text-xs text-zinc-400">无高风险文件</p>}
                 </div>
+              </div>
+            )}
+
+            {drawerTab === 'readme' && (
+              <div className="p-4">
+                <h4 className="text-xs font-medium text-zinc-500 mb-3">项目说明</h4>
+                {readmeContent ? (
+                  <div className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap space-y-2"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(readmeContent) }} />
+                ) : readmeLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-zinc-400 py-4">
+                    <span className="w-3 h-3 border-1.5 border-zinc-300 border-t-blue-500 rounded-full animate-spin" />
+                    AI 正在生成项目说明...
+                  </div>
+                ) : readmeError ? (
+                  <div className="space-y-3">
+                    <p className="text-xs text-red-500">{readmeError}</p>
+                    <button onClick={() => {
+                      const apiKey = localStorage.getItem('gitverse_ai_key')
+                      if (apiKey) { setReadmeContent(''); setReadmeError(''); setReadmeLoading(true)
+                        // Reset and let the load effect re-trigger
+                        setLoading(true); setTimeout(() => window.location.reload(), 100)
+                      }
+                    }} className="text-xs text-blue-500 hover:underline">重试生成</button>
+                  </div>
+                ) : (
+                  <div className="text-xs text-zinc-400 space-y-1">
+                    <p>配置 DeepSeek API Key 后自动生成项目说明书</p>
+                    <Link href="/settings" className="text-blue-500 hover:underline">前往设置 →</Link>
+                  </div>
+                )}
               </div>
             )}
 
