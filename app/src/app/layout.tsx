@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Gitverse - 可视化代码演进分析',
   description: '可视化代码演进与依赖分析工具',
-  icons: { icon: '/gitverse.webp' },
+  icons: [{ url: '/gitverse.webp', type: 'image/webp' }],
 };
 
 export default function RootLayout({

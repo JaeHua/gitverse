@@ -150,7 +150,7 @@ function HomeContent() {
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5 font-semibold text-zinc-900 dark:text-zinc-100 hover:opacity-80 transition-opacity">
-            <Image src="/gitverse.webp" alt="Gitverse" width={28} height={28} className="rounded-md" />
+            <Image src="/gitverse.webp" alt="Gitverse" width={32} height={32} className="rounded-md" />
             <span className="text-lg tracking-tight">Gitverse</span>
           </Link>
           <AuthButton />
