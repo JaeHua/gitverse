@@ -142,7 +142,7 @@ export default function AnalysisPage() {
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md px-6 h-12 flex items-center justify-between shrink-0 sticky top-0 z-50">
         <div className="flex items-center gap-3 min-w-0">
           <Link href="/" className="shrink-0">
-            <Image src="/gitverse.webp" alt="Gitverse" width={24} height={24} className="rounded-sm" />
+            <Image src="/gitverse.webp" alt="Gitverse" width={28} height={28} className="rounded-md" />
           </Link>
           <span className="text-zinc-300 dark:text-zinc-600">/</span>
           <span className="text-sm font-medium truncate">{analysis.repoName}</span>
