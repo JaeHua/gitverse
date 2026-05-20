@@ -9,9 +9,8 @@ import Timeline from '@/components/Timeline'
 import FileDetails from '@/components/FileDetails'
 import AuthButton from '@/components/AuthButton'
 import { useToast } from '@/components/Toast'
-import CouplingMatrix from '@/components/CouplingMatrix'
 
-type Tab = 'overview' | 'risk' | 'readme' | 'coupling' | 'diff' | 'detail'
+type Tab = 'overview' | 'risk' | 'readme' | 'diff' | 'detail'
 
 export default function AnalysisPage() {
   const params = useParams()
@@ -191,10 +190,10 @@ export default function AnalysisPage() {
         {showDrawer && (
           <aside className="w-72 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-y-auto shrink-0">
             <div className="flex border-b border-zinc-100 dark:border-zinc-800">
-              {(['overview', 'risk', 'readme', 'coupling', 'diff', 'detail'] as Tab[]).map(tab => (
+              {(['overview', 'risk', 'readme', 'diff', 'detail'] as Tab[]).map(tab => (
                 <button key={tab} onClick={() => setDrawerTab(tab)}
                   className={`flex-1 py-2 text-[10px] font-medium transition-colors ${drawerTab === tab ? 'text-blue-500 border-b-2 border-blue-500' : 'text-zinc-400 hover:text-zinc-600'}`}>
-                  {tab === 'overview' ? '概览' : tab === 'risk' ? '热点' : tab === 'readme' ? '说明' : tab === 'coupling' ? '耦合' : tab === 'diff' ? 'Diff' : '详情'}
+                  {tab === 'overview' ? '概览' : tab === 'risk' ? '热点' : tab === 'readme' ? '说明' : tab === 'diff' ? 'Diff' : '详情'}
                 </button>
               ))}
             </div>
@@ -244,26 +243,6 @@ export default function AnalysisPage() {
                   ))}
                   {hotFiles.length === 0 && <p className="text-xs text-zinc-400">无高风险文件</p>}
                 </div>
-              </div>
-            )}
-
-            {drawerTab === 'readme' && (
-              <div className="p-4">
-                <h4 className="text-xs font-medium text-zinc-500 mb-3">项目说明</h4>
-                {readmeContent ? (
-                  <div className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap space-y-2"
-                    dangerouslySetInnerHTML={{ __html: renderMarkdown(readmeContent) }} />
-                ) : readmeLoading ? (
-                  <div className="flex items-center gap-2 text-xs text-zinc-400">
-                    <span className="w-3 h-3 border-1.5 border-zinc-300 border-t-blue-500 rounded-full animate-spin" />
-                    AI 正在生成项目说明...
-                  </div>
-                ) : (
-                  <div className="text-xs text-zinc-400 space-y-1">
-                    <p>配置 DeepSeek API Key 后自动生成项目说明书</p>
-                    <Link href="/settings" className="text-blue-500 hover:underline">前往设置 →</Link>
-                  </div>
-                )}
               </div>
             )}
 
@@ -331,13 +310,6 @@ export default function AnalysisPage() {
                 ) : (
                   <p className="text-xs text-zinc-400">播放时间轴后查看提交变更</p>
                 )}
-              </div>
-            )}
-
-            {drawerTab === 'coupling' && (
-              <div className="p-4">
-                <h4 className="text-xs font-medium text-zinc-500 mb-3">模块耦合</h4>
-                <CouplingMatrix nodes={analysis.nodes} edges={analysis.edges} />
               </div>
             )}
 
